@@ -3,6 +3,7 @@ import importlib as imp
 import h5py
 # import pylib.Global_variables as GLO
 import sys
+from scipy.optimize import fsolve
 
 try:
     import pylib.Global_variables as GLO
@@ -27,7 +28,7 @@ np.set_printoptions(suppress=False)
 
 # -----------------------------------------
 # --- *Lib2*: Global Parameters ---
-G_zero_err = 1e-16
+G_zero_err = 1e-12
 G_sqrt2 = np.sqrt(2)
 G_inv_sqrt2 = 1./G_sqrt2
 
@@ -528,6 +529,14 @@ def error_mes(message):
 
 # -----------------------------------------
 # --- *Lib5*: Gates ---
+def Ry(ay):
+    ay2 = ay/2.
+    G = np.array([
+        [np.cos(ay2), -np.sin(ay2)],
+        [np.sin(ay2),  np.cos(ay2)]
+    ])
+    return G
+
 def Rz(theta):
     th2 = 1j*theta/2.
     resMatrix = np.array([
@@ -535,6 +544,33 @@ def Rz(theta):
         [0.0,          np.exp(th2)]
     ])
     return resMatrix
+
+# = Ry * Rz, where the right gate acts first:
+def Rc(ay, az, flag_inv = False):
+    if az is None:
+        return Ry(-ay) if flag_inv else Ry(ay)
+    ay2 = ay/2.
+    az2 = az/2.
+    cc = np.cos(ay2)
+    ss = np.sin(ay2)
+    expm = np.exp(-1j*az2)
+    expp = np.exp(1j*az2)
+    if not flag_inv:
+        G = np.array([
+            [cc * expm, -ss * expp],
+            [ss * expm,  cc * expp]
+        ])
+    else:
+        G = np.array([
+            [ cc * expp, ss * expp],
+            [-ss * expm, cc * expm]
+        ])
+    return G
+
+
+def zero_state_vector():
+    return [1.0, 0.0]
+
 
 # rotation around phi-axis on an angle theta
 def Rphi(phi, theta):
@@ -556,7 +592,7 @@ def Ep(phi,theta):
 
 # -----------------------------------------
 # --- *Lib6*: I/O ---
-def print_array(A, ff=[13, 3, "f"], n_in_row = 7, flag_remove_zeros=False, coef_remove_zeros=1e-16):
+def print_array(A, ff=[13, 3, "f"], n_in_row = 7, flag_remove_zeros=False, coef_remove_zeros=G_zero_err):
     ff_line = "{:" + str(ff[0]) + "." + str(ff[1]) + ff[2] + "}"
     str_out = ''
     for ii, a1 in enumerate(A):
@@ -649,9 +685,6 @@ def print_subblock_colored(
     return
 
 
-
-
-
 def print_dict(dict):
     for kk in dict.keys():
         print(kk, ": ", dict[kk])
@@ -673,6 +706,7 @@ def read_matrix_csv(file_name, format_num):
         res.append(x1)
 
     return np.matrix(res)
+
 
 def read_file_general(file_name, format_num=float):
     import csv
@@ -943,6 +977,176 @@ def form_complement_for_array_of_integers(N_full, init_array):
         mask_ext[init_array_unique[ii]] = 1
     res_array = np.where(mask_ext == 0)[0]
     return res_array
+
+
+# def calc_angles_from_values(array_of_values, prec = G_zero_err):
+#     Nv = len(array_of_values)
+#     res_angles = [None] * Nv
+#     for id_v in range(Nv):
+#         res_angles[id_v] = calc_angles_from_a_value(array_of_values[id_v], prec)
+#     return res_angles
+
+
+def calc_angles_from_a_value(v1, prec = G_zero_err):
+    if np.abs(v1.imag) < prec:
+        # real value:
+        az = None
+        ay = 2.*np.arccos(v1.real)
+    else:
+        # complex value:
+        az, ay = get_Rc_angles(v1)
+    return [ay, az]
+
+
+def action_of_RyRc_gates(groups, init_vector=zero_state_vector()):
+    res_vec = init_vector
+    for one_group in groups:
+        ay, az = one_group.get_angles()
+        G = Rc(ay, az, one_group.flag_inverse_)
+        res_vec = np.dot(G, res_vec)
+    return res_vec
+
+
+def compare_complex_values(a1, a2, prec = G_zero_err):
+    flag_same = False
+    if np.abs(a1.real - a2.real) <= prec:
+        if np.abs(a1.imag - a2.imag) <= prec:
+            flag_same = True
+    return flag_same
+
+
+def find_correcting_angles_for_Rc(required_value, init_vec, prec = G_zero_err):
+    ay, az = find_correcting_angles_for_Rc_FLOAT(required_value, init_vec, prec)
+    if ay is None:
+        ay, az = find_correcting_angles_for_Rc_MMATH(required_value, init_vec, prec)
+    return ay, az 
+
+
+def find_correcting_angles_for_Rc_FLOAT(required_value, init_vec, prec = G_zero_err):
+    # print("FLOAT")
+    w1 = init_vec[0]
+    w2 = init_vec[1]
+
+    r1, i1 = w1.real, w1.imag
+    r2, i2 = w2.real, w2.imag
+    
+    # assume that the "required_value" should be stored as 
+    #   an amplitude of the zero state:
+    def my_eqs(z):
+        ay = z[0]
+        az = z[1]
+
+        cy = np.cos(ay/2.)
+        sy = np.sin(ay/2.)
+        cz = np.cos(az/2.)
+        sz = np.sin(az/2.)
+        
+        F = np.empty((2))
+        F[0] = cy * (cz*r1 + sz*i1) - sy * (cz*r2 - sz*i2) - np.real(required_value)
+        F[1] = cy * (cz*i1 - sz*r1) - sy * (sz*r2 + cz*i2) - np.imag(required_value)
+        return F
+    def one_iteration(init_guess):
+        flag_success = False
+        ayc, azc = fsolve(my_eqs, init_guess)
+        recheck_value, _ = np.dot(Rc(ayc, azc), init_vec)
+        if compare_complex_values(recheck_value, required_value, prec):
+            flag_success = True
+        return ayc, azc, flag_success
+    # ---
+
+    try:
+        ayc, azc, flag_return = one_iteration([100.0, 100.0])
+        if flag_return:
+            return ayc, azc
+        
+        ayc, azc, flag_return = one_iteration([0.0, 0.0])
+        if flag_return:
+            return ayc, azc
+    except Exception as e:
+        dump = 0
+
+    N_iter = 4
+    for _ in range(N_iter):
+        ayc, azc, flag_return = one_iteration(2*np.pi*np.random.rand(2))
+        if flag_return:
+            return ayc, azc
+        
+    # Failed:
+    return None, None
+
+
+def find_correcting_angles_for_Rc_MMATH(required_value, init_vec, prec = G_zero_err):
+    print("MMATH")
+    from mpmath import findroot
+    from mpmath import cos as mcos
+    from mpmath import sin as msin
+    from mpmath import mp
+
+    w1 = init_vec[0]
+    w2 = init_vec[1]
+
+    r1, i1 = w1.real, w1.imag
+    r2, i2 = w2.real, w2.imag
+    
+    def my_equ1(ay, az):
+        cy = mcos(ay/2.)
+        sy = msin(ay/2.)
+        cz = mcos(az/2.)
+        sz = msin(az/2.)
+        return cy * (cz*r1 + sz*i1) - sy * (cz*r2 - sz*i2) - np.real(required_value)
+    
+    def my_equ2(ay, az):
+        cy = mcos(ay/2.)
+        sy = msin(ay/2.)
+        cz = mcos(az/2.)
+        sz = msin(az/2.)
+        return cy * (cz*i1 - sz*r1) - sy * (sz*r2 + cz*i2) - np.imag(required_value)
+    
+    mp.dps = 100
+    N_iter = 1
+    init_guess = np.random.rand(2)
+    init_guess = [100, 100]
+    for _ in range(N_iter):
+        try:
+            ayc, azc = findroot([my_equ1, my_equ2], init_guess)
+            recheck_value, _ = np.dot(Rc(ayc, azc), init_vec)
+            if compare_complex_values(recheck_value, required_value, prec):
+                return float(ayc), float(azc)
+        except Exception as e:
+            print("Exception catched")
+    return None, None
+
+    
+    # # Compute the angles for two different guesses;
+    # # if the results are the same, take them as the final result:
+    # mp.dps = 50
+    # ayc_v1, azc_v1 = findroot([my_equ1, my_equ2], [0.0, 0.0])
+    # ayc_v2, azc_v2 = findroot([my_equ1, my_equ2], [100.0, 100.0])
+    # if np.abs(ayc_v1 - ayc_v2) < prec and np.abs(azc_v1 - azc_v2) < prec:
+    #     return ayc_v1, azc_v1
+
+    # # Compute the angles several times and save different values of the angles:
+    # N_iter = 10
+    # ayc, azc = findroot([my_equ1, my_equ2], np.random.rand(2))
+    # array_as = [ [ayc, azc] ]
+    # array_counter = [1]
+    # for _ in range(N_iter):
+    #     ayc, azc = findroot([my_equ1, my_equ2], np.random.rand(2))
+    #     counter_aa = 0
+    #     for ay_2, az_2 in array_as:
+    #         counter_aa += 1
+    #         if np.abs(ayc - ay_2) < prec and np.abs(azc - az_2) < prec:
+    #             break
+    #     if counter_aa > len(array_as):
+    #         array_counter.append(1)
+    #         array_as.append([ayc, azc])
+    #     else:
+    #         array_counter[counter_aa-1] +=1
+
+    # # chose angles that occur the most often:
+    # id_max = np.argmax(np.array(array_counter, dtype=int))
+    # ayc, azc = array_as[id_max]
+    # return float(ayc), float(azc)
 
 
 

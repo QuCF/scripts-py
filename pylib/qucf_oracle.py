@@ -15,7 +15,7 @@ def reload():
     return
 
 # -------------------------------------------------------------------------------------------------
-# --- Assumptions ---
+# --- ASSUMPTIONS ---
 # -> Input registers are less significant than ancilla registes;
 # -> For each input register, one must have a corresponding ancilla register;
 # -------------------------------------------------------------------------------------------------
@@ -246,7 +246,6 @@ class Circuit__:
     # find a list of integers (one integer for each ancilla register) that
     # encodes the given section index section_id;
     # anc_integers[0]: the resulting integer in the most-significant ancilla register.
-    # anc_bitstrings[i] is a bitstring encoding the integer anc_integers[i].
     def get_anc_integers_from_section_index(self, section_id, i_anc = 0, anc_integers=None):
         if i_anc == 0:
             anc_integers=[]
@@ -371,19 +370,21 @@ class Circuit__:
                 res_line += keyword_control + "{:s} {:d} ".format(one_reg.name_, reg_int)
         return res_line
     
-
     def get_key(self, a):
         keyword = self.ff_prec_.format(a.real) + " " + self.ff_prec_.format(a.imag)
         return keyword
+    
+    def get_line_angles(self, angles):
+        ay, az = angles
+        if ay is None:
+            print("Error in line generation: ay is None")
+            exit()
+        line_angles = self.ff_prec_.format(ay)
+        if az is not None:
+            line_angles = self.ff_prec_.format(az) + " " + line_angles
+        return line_angles
 
         
-    def compare_values(self, a1, a2):
-        flag_same = False
-        if np.abs(a1.real - a2.real) <= self.prec_:
-            if np.abs(a1.imag - a2.imag) <= self.prec_:
-                flag_same = True
-        return flag_same
-    
 
 # -------------------------------------------------------------------------------------------------
 # --- Group ---
@@ -391,10 +392,14 @@ class Circuit__:
 # where matrix elements have the same value. 
 # -------------------------------------------------------------------------------------------------
 class Group__:
-    # group angle:
-    a_ = None 
+    # a complex value attributed to the group:
+    __v_ = None 
 
-    # array of rows where the groups sits:
+    # angles associated with the group value:
+    __ay_ = None
+    __az_ = None
+
+    # the core of the group: the array of rows of the initial group:
     irs_ = None 
 
     # if True, use control_reg_bits_ to set control nodes, and 
@@ -411,13 +416,51 @@ class Group__:
     # row indices of the complement to the group:
     irs_complement_ = None
 
+    # flag which is used by some routines to know whether 
+    #   the current group should be taken into account or not:
+    flag_removed_ = None
+
+    # where the corresponding gates gates should be inverted:
+    flag_inverse_ = None
+
  
     def __init__(self, group_value):
-        self.a_ = group_value
+        self.set_value(group_value)
         self.irs_ = np.array([], dtype=int)
+        self.irs_complement_ = np.array([], dtype=int)
+        self.flag_removed_ = False
+        self.flag_inverse_ = False
         return
 
+    def set_value(self, new_value):
+        self.__v_ = new_value
+        self.__ay_, self.__az_ = mix.calc_angles_from_a_value(self.__v_)
+        return
+    
+    def get_value(self):
+        return self.__v_
+    
+    def set_angles(self, ay, az):
+        self.__ay_, self.__az_ = (ay, az)
+        self.__v_ = mix.Rc(ay,az)[0, 0]
+        return
 
+    def get_angles(self):
+        return self.__ay_, self.__az_
+
+    def invert_gate(self):
+        self.flag_inverse_ = not self.flag_inverse_
+        return 
+    
+    # Construct the full range of sorted rows covered by the given group: 
+    def give_full_irs(self):
+        if len(self.irs_complement_) > 0:
+            irs_work = np.concatenate((self.irs_, self.irs_complement_))
+        else:
+            irs_work = self.irs_
+        return np.sort(irs_work)
+
+    # find rows where the complement of the groups sits:
     def construct_complement(self, circ):
         if not self.flag_extended_:
             return
@@ -564,32 +607,40 @@ class Group__:
         return res_line
 
 
+
 # -------------------------------------------------------------------------------------------------
 # --- System of gates ---
 # -------------------------------------------------------------------------------------------------
 class SystemGates__:
     circ_ = None
     groups_ = None
-    coef_ext_ = 4
+    __Nr_small_ = None
 
     # the parameter indicates how many qubits in input qubits (from all input registers) 
     #   should be investigated to split a group:
     n_split_ = 1
 
-    # 
-    complements_ = None
+    # used in reconstruct_matrix_using_GRID;
+    # grid_values_[i-section][i-row] = [first-group, second-group, ...];
+    # if len(grid_values_[i-section][i-row]) > 1, a correcting gate is required 
+    #   at the row with the index i-row in the section with the index i-section;
+    grid_values_ = None
     
-
     def __init__(self, circ, groups):
         self.circ_ = circ
         self.groups_ = groups
-        self.complements_ = None
+        self.__Nr_small_ = 4
         return
     
+    def set_rows_limit_for_non_extension(self, Nr_non_ext):
+        self.__Nr_small_ = Nr_non_ext
+        return
 
-    # > flag_values = True: use values to reconstruct the matrix;
-    # > flag_values = False: compte first angles, and then find values again;
-    def reconstruct_matrix_using_groups(self):    
+    
+    # Consider only the core of each group to reconstruct the matrix;
+    # can be applied only before launching 
+    # the functions SystemGates__.merge_groups and SystemGates__.correct_groups.
+    def reconstruct_matrix_using_GROUPS(self):    
         N = 1 << self.circ_.input_regs_.nq_
         A_recon = np.zeros((N, N), dtype=complex) # reconstructed matrix
         print("Matrix size: {:d}".format(N))
@@ -606,127 +657,110 @@ class SystemGates__:
                     ir = one_group.irs_[counter_row]
                     integers_input_regs = self.circ_.compute_integers_in_input_registers(ir)
                     ic = self.circ_.get_column_index_from_anc_integers(anc_integers, integers_input_regs)
-                    A_recon[ir, ic] = one_group.a_
+                    A_recon[ir, ic] = one_group.get_value()
         return A_recon
     
 
-    def apply_gate(self, element_value, gate_type, group_angle):
-        # we assume that R acts on the ZERO state, and 
-        #   the result is encoded into the amplitude of the ZERO state:
-        if gate_type == "Ry":
-            coef = np.cos(group_angle/2.)
-        if gate_type == "Rc":
-            coef = np.exp(-1j*group_angle[0]/2.) * np.cos(group_angle[1]/2.)
+    # should be called after SystemGates__.correct_groups;
+    # Consider extended and correcting gates to reconstruct the matrix;
+    def reconstruct_matrix_using_GRID(self): 
+        N = 1 << self.circ_.input_regs_.nq_
+        A_recon = np.zeros((N, N), dtype=complex) # reconstructed matrix
+        print("Matrix size: {:d}".format(N))
+        for i_section in range(self.circ_.N_sections_):
+            one_grid = self.grid_values_[i_section]
+            if not one_grid:
+                continue 
+            anc_integers = self.circ_.get_anc_integers_from_section_index(i_section)
+            for ir in range(N):
+                if one_grid[ir] is None:
+                    continue
 
-        if np.abs(element_value) > 0:
-            element_value = element_value * coef
-        else:
-            element_value = coef
-        return element_value
+                # find the column index:
+                integers_input_regs = self.circ_.compute_integers_in_input_registers(ir)
+                ic = self.circ_.get_column_index_from_anc_integers(anc_integers, integers_input_regs)
+
+                # compute the value of the matrix element: 
+                res_value, _ = mix.action_of_RyRc_gates(one_grid[ir])
+
+                # save the value:
+                A_recon[ir, ic] = res_value
+        return A_recon
     
 
     def count_groups(self):
-        print()
         print("N = {:d}".format(1 << self.circ_.input_regs_.nq_))
-        for i_gate in range(len(self.gate_types_)):
-            gate_type = self.gate_types_[i_gate]
-            print("--- Groups for the gate {:s} ---".format(gate_type))
-            groups_R = self.dict_gates_[gate_type]
-            counter_groups = 0
-            for i_section in range(self.circ_.N_sections_):
-                one_section = groups_R[i_section]
-                if one_section is None:
-                    continue
-                N_groups = len(one_section)
-                counter_groups += N_groups
-            print("Number of groups: {:d}".format(counter_groups))
-        print()
-        return
-    
-
-    def print_angles(self, gate_type):
-        print()
-        print("Group angles for the gate {:s}".format(gate_type))
-        groups_R = self.dict_gates_[gate_type]
+        counter_groups = 0
         for i_section in range(self.circ_.N_sections_):
-            one_section = groups_R[i_section]
-            line_angles = ""
+            one_section = self.groups_[i_section]
             if one_section is None:
                 continue
-            N_groups = len(one_section)
-            print("Section: {:d}".format(i_section))
-            for i_group in range(N_groups):
-                one_group = one_section[i_group]
-                line_angles += self.circ_.get_key(one_group.a_) + "; "
-            print(line_angles)
+            for one_group in one_section:
+                if not one_group.flag_removed_:
+                    counter_groups += 1
+        print("Number of groups: {:d}".format(counter_groups))
+        print()
         return
     
 
-    # Assume that gates act on a target qubit called ae;
+    # Assume that gates act on a target ancilla qubit called "ae";
     def construct_circuit_OH(self, path, filename):
         file_lines = []
         counter_gates = 0
-        gate_types_loc = list(self.gate_types_)
-        for i_gate in range(len(gate_types_loc)):
-            gate_type = gate_types_loc[i_gate]
-            groups_R = self.dict_gates_[gate_type]
-            for i_section in range(self.circ_.N_sections_):
-                one_section = groups_R[i_section]
-                if one_section is None:
+        counter_compl_gates = 0
+        for i_section in range(self.circ_.N_sections_):
+            one_section = self.groups_[i_section]
+            if one_section is None:
+                continue
+
+            ancilla_integers = self.circ_.get_anc_integers_from_section_index(i_section)
+            str_line = self.circ_.write_line_for_control_integers(ancilla_integers, False)
+            one_line  = "//--------------------------------------------------------------------------\n"
+            one_line += "//--------------------------------------------------------------------------\n"
+            one_line += "with {:s} do".format(str_line)
+            file_lines.append(one_line)
+
+            for one_group in one_section:
+                if one_group.flag_removed_:
                     continue
+                ay, az = one_group.get_angles()
+                line_angle = self.circ_.get_line_angles((ay, az))
+                file_lines.append("// ---")
 
-                ancilla_integers = self.circ_.get_anc_integers_from_section_index(i_section)
-                str_line = self.circ_.write_line_for_control_integers(ancilla_integers, False)
-                one_line  = "//--------------------------------------------------------------------------\n"
-                one_line += "//--------------------------------------------------------------------------\n"
-                one_line += "with {:s} do".format(str_line)
-                file_lines.append(one_line)
-
-                N_groups = len(one_section)
-                for i_group in range(N_groups):
-                    one_group = one_section[i_group]
-                    
-                    # here, compure an angle and write it to the line:
-                    # TO DO
-                    # line_angle = self.circ_.get_key(one_group.a_)
-
-                    file_lines.append("// ---")
-
-                    # --- For an extended group ---
-                    if one_group.flag_extended_:
-                        # --- Control nodes ---
-                        one_line = "   gate {:s} ae 1 {:s} ".format(gate_type, line_angle)
-                        one_line += one_group.write_line_for_input_control_nodes(self.circ_)
+                flag_Ry = True if az is None else False
+                gate_type = "Ry" if flag_Ry else "Rc"
+                if one_group.flag_extended_:
+                    # --- An extended group ---
+                    one_line = "   gate {:s} ae 1 {:s} ".format(gate_type, line_angle)
+                    one_line += one_group.write_line_for_input_control_nodes(self.circ_)
+                    one_line += "end_gate"
+                    file_lines.append(one_line)
+                    counter_gates += 1 if flag_Ry else 2
+                    counter_compl_gates += 1
+                else:
+                    # --- A non-extended group ---
+                    line_gate = "igate" if one_group.flag_inverse_ else "gate" 
+                    for ir in one_group.irs_: 
+                        input_integers = self.circ_.compute_integers_in_input_registers(ir)
+                        one_line = "   " + line_gate + " {:s} ae 1 {:s} ".format(gate_type, line_angle)
+                        one_line += self.circ_.write_line_for_control_integers(input_integers, True)
                         one_line += "end_gate"
                         file_lines.append(one_line)
-                        counter_gates += 1
+                        counter_gates += 1 if flag_Ry else 2
+                        counter_compl_gates += 1
 
-                        # --- Complements ---
-                        control_integers = one_group.irs_complement_
-                        N_integers = len(control_integers)
-                        for i_integer in range(N_integers): 
-                            ir = control_integers[i_integer]
-                            input_integers = self.circ_.compute_integers_in_input_registers(ir)
-                            one_line = "   igate {:s} ae 1 {:s} ".format(gate_type, line_angle)
-                            one_line += self.circ_.write_line_for_control_integers(input_integers, True)
-                            one_line += "end_gate"
-                            file_lines.append(one_line)
-                            counter_gates += 1
-
-                    # --- For a non-extended group ---
-                    if not one_group.flag_extended_:
-                        control_integers = one_group.irs_
-                        N_integers = len(control_integers)
-                        for i_integer in range(N_integers): 
-                            ir = control_integers[i_integer]
-                            input_integers = self.circ_.compute_integers_in_input_registers(ir)
-                            one_line = "   gate {:s} ae 1 {:s} ".format(gate_type, line_angle)
-                            one_line += self.circ_.write_line_for_control_integers(input_integers, True)
-                            one_line += "end_gate"
-                            file_lines.append(one_line)
-                            counter_gates += 1
-
-                file_lines.append("end_with")
+                    # control_integers = one_group.irs_
+                    # N_integers = len(control_integers)
+                    # line_gate = "igate" if one_group.flag_inverse_ else "gate" 
+                    # for i_integer in range(N_integers): 
+                    #     ir = control_integers[i_integer]
+                    #     input_integers = self.circ_.compute_integers_in_input_registers(ir)
+                    #     one_line = "   " + line_gate + " {:s} ae 1 {:s} ".format(gate_type, line_angle)
+                    #     one_line += self.circ_.write_line_for_control_integers(input_integers, True)
+                    #     one_line += "end_gate"
+                    #     file_lines.append(one_line)
+                    #     counter_gates += 1 if flag_Ry else 2
+            file_lines.append("end_with")
 
         # --- build section CIRCUIT_STRUCTURE ---
         fullname = path + "/" + filename + ".oracle"
@@ -738,6 +772,7 @@ class SystemGates__:
         # --- Log data ---
         self.circ_.print_structure()
         print("N-gates: {:d}".format(counter_gates))
+        print("N-gates (assuming Rc as a single gate): {:d}".format(counter_compl_gates))
         return
     
 
@@ -760,7 +795,7 @@ class SystemGates__:
             indices_sorted_from_least_to_largest = np.argsort(group_sizes) # from smallest to largest;
             for i_group in range(N_groups): 
                 i_group_prev = indices_sorted_from_least_to_largest[i_group]
-                sorted_groups[i_section][i_group] = Group__(one_section[i_group_prev].a_) 
+                sorted_groups[i_section][i_group] = Group__(one_section[i_group_prev].get_value()) 
                 sorted_groups[i_section][i_group].irs_ = np.array(one_section[i_group_prev].irs_)
             sorted_groups[i_section].reverse()
         self.groups_ = sorted_groups
@@ -768,13 +803,45 @@ class SystemGates__:
 
 
     # extend groups in each section:
-    def extend_sorted_groups(self):
+    def extend_sorted_groups(self, B_fixed):
+        N = 1 << self.circ_.input_regs_.nq_
         N_regs = self.circ_.input_regs_.N_regs_
         for i_section in range(self.circ_.N_sections_):
             one_section = self.groups_[i_section]
             if one_section is None:
                 continue
             counter_ext_group = 0
+
+            # *** Prepare data to restrict complements of the section groups ***
+            irs_exclude = np.array([], dtype=int)
+            anc_integers = self.circ_.get_anc_integers_from_section_index(i_section)
+
+            # to exclude elements beyond limits of the matrix:
+            integers_input_regs = self.circ_.compute_integers_in_input_registers(0)
+            ic = self.circ_.get_column_index_from_anc_integers(anc_integers, integers_input_regs)
+            shift_rc = ic
+            if ic < 0:
+                irs_exclude = np.concatenate(( irs_exclude, np.array(range(np.abs(ic))) ))
+            del anc_integers, integers_input_regs
+            
+            ic = (N-1) + shift_rc
+            if ic >= N:
+                irs_exclude = np.concatenate(( irs_exclude, np.array(range(N-(ic-N)-1, N)) ))
+                
+            # to exclude elements where the matrix elements equal zero:
+            irs_zeros = np.zeros(N, dtype=int)
+            N_zeros = 0
+            for i_row in range(N):
+                ic = i_row + shift_rc
+                if ic < 0 or ic >= N:
+                    continue
+                if np.abs(B_fixed[i_row, ic]) < self.circ_.prec_:
+                    N_zeros += 1
+                    irs_zeros[N_zeros-1] = i_row
+            irs_exclude = np.concatenate((irs_exclude, irs_zeros[:N_zeros]))
+            del shift_rc, ic
+
+            # *** Look for constant bits in each non-small group to extend it ***
             N_groups = len(one_section)
             for i_group in range(N_groups):
                 one_group = one_section[i_group]
@@ -783,7 +850,7 @@ class SystemGates__:
                 N_rows = len(one_group.irs_)
                 flag_ext = False
                 reg_control_qubits = [None] * N_regs
-                if N_rows > self.coef_ext_: # if the group size is larger of the imposed threshold;
+                if N_rows > self.__Nr_small_: # if the group size is larger of the imposed threshold;
                     counter_ext_group += 1
                     flag_ext = True
                     matrices_bs_regs = [None] * N_regs
@@ -820,9 +887,31 @@ class SystemGates__:
                 one_group.flag_extended_    = flag_ext
                 one_group.control_reg_bits_ = reg_control_qubits if flag_ext else None
 
-                # find the complement group:
+                # *** Find the complement of the group ***
                 if flag_ext:
                     one_group.construct_complement(self.circ_)
+
+                    # restrict the complement range:
+                    if len(irs_exclude) > 0:
+                        if len(irs_exclude) == 1:
+                            xx = 0
+                            one_group.irs_complement_ = np.delete(
+                                one_group.irs_complement_,
+                                np.where(one_group.irs_complement_ == irs_exclude[0])
+                            )
+                            xx = 0
+                        else:
+                            irs_complement_new = np.zeros(
+                                (len(one_group.irs_complement_)), 
+                                dtype=int
+                            )
+                            N_new_compl = 0
+                            for ir_comp in one_group.irs_complement_:
+                                if ir_comp not in irs_exclude:
+                                    N_new_compl += 1
+                                    irs_complement_new[N_new_compl-1] = ir_comp
+                            one_group.irs_complement_ = irs_complement_new[:N_new_compl]
+                            xx = 0
         return 
 
 
@@ -861,8 +950,8 @@ class SystemGates__:
                         array_found = np.where(bits_row == bit_inv)[0]
                         if len(array_found): 
                             id_split = array_found[0]
-                            l_group = Group__(one_group.a_)
-                            r_group = Group__(one_group.a_)
+                            l_group = Group__(one_group.get_value())
+                            r_group = Group__(one_group.get_value())
 
                             l_group.irs_ = one_group.irs_[0:id_split]
                             r_group.irs_ = one_group.irs_[id_split:]
@@ -878,39 +967,260 @@ class SystemGates__:
                     break
         return  
     
-
-    def correct_groups(self):
-
-        # *** Sort all complements accordingto the position ***
-        N_regs = self.circ_.input_regs_.N_regs_
+    
+    # Use the function after the function "extend_sorted_groups" has been launched.
+    # Merge groups that have the same values and where one group overlaps the other one completely***
+    # Assume that an extended group Gext overlaps with a group Go, and assume that
+    # Gext.__v_ == Go.__v_.
+    # 1. If Go is non-extended, remove from Go.irs_ all row indices that 
+    #   already present in Gext.irs_complement_.
+    # 2. If Go is extended (have control bits), remove the whole Go if 
+    #   Gext overlaps with all irs_ and all irs_.complement_ of the group Go.
+    def merge_groups(self):
         for i_section in range(self.circ_.N_sections_):
             one_section = self.groups_[i_section]
             if one_section is None:
                 continue
             N_groups = len(one_section)
+
+            # Here, we assume that the groups have been sorted from 
+            # the largest (extended) to the smallest (non-extended) groups:
             for i_group in range(N_groups):
                 one_group = one_section[i_group]
-                if one_group.flag_extended_:
-                    for ir in one_group.irs_complement_:
-                        if ir in self.complements_:
-                            self.complements_[ir].append(one_group)
 
+                # skip if the group has been removed previously have a zero-size complement: 
+                if one_group.flag_removed_ or (len(one_group.irs_complement_) == 0):
+                    continue
+                irs_work = one_group.give_full_irs()
 
-        # *** Now check which groups aver overlapped with complements ***
+                # check whether the group overlaps with other non-larger groups:
+                for other_group in one_section[i_group+1:]:
+                    if other_group.flag_removed_:
+                        continue
 
-
-        # *** Find correcting groups for each overlapped element ***
-
-
-
-
-
-
-
+                    # check whether the groups have the same values:
+                    if not mix.compare_complex_values(
+                        other_group.get_value(), one_group.get_value(), self.circ_.prec_
+                    ):
+                        continue
+                    if other_group.flag_extended_:
+                        # if the other group is extended, remove it from consideration 
+                        #   if and only if 
+                        # the other group is overlapped completely with the current group:
+                        irs_other = other_group.give_full_irs()
+                        other_group.flag_removed_ = True
+                        for ir_check in irs_other:
+                            if ir_check not in irs_work:
+                                other_group.flag_removed_ = False
+                                break
+                    else:
+                        # if the other group is not extended, 
+                        # remove all rows which overlap with the current group
+                        # from the other group's irs_:
+                        Nr_new = 0
+                        irs_new = np.zeros(len(other_group.irs_), dtype=int)
+                        for ir_check in other_group.irs_:
+                            if ir_check not in irs_work:
+                                Nr_new += 1
+                                irs_new[Nr_new-1] = ir_check
+                        other_group.irs_ = irs_new[:Nr_new]
         return
 
 
-    
+    def correct_close_groups(self):
+        calc_angles = lambda value_goal, init_vec: mix.find_correcting_angles_for_Rc_FLOAT(
+            value_goal, init_vec, self.circ_.prec_
+        )
+
+        for i_section in range(self.circ_.N_sections_):
+            one_section = self.groups_[i_section]
+            if one_section is None:
+                continue
+            N_groups = len(one_section)
+
+            # Here, we assume that the groups have been sorted from 
+            # the largest (extended) to the smallest (non-extended) groups:
+            for i_group in range(N_groups):
+                one_group = one_section[i_group]
+
+                # skip if the group has been removed previously have a zero-size complement: 
+                if one_group.flag_removed_ or (len(one_group.irs_complement_) == 0):
+                    continue
+
+                # check whether the group overlaps with other non-larger groups:
+                for other_group in one_section[i_group+1:]:
+
+                    # consider only extended groups
+                    if not other_group.flag_extended_ or other_group.flag_removed_:
+                        continue
+
+                    # check whether the groups intersect significantly:
+                    # (we are not interested in complement-complement intersections)
+                    counter_intersection = 0
+                    for ir_check in other_group.irs_:
+                        if ir_check in one_group.irs_complement_:
+                            counter_intersection += 1
+
+                    if counter_intersection > self.__Nr_small_:
+                        # if the overlapping between the groups is large enough, then 
+                        # correct the group so that the combined action of two groups
+                        # would produce a correct matrix element's value:
+                        obtained_vec = mix.action_of_RyRc_gates([one_group])
+                        required_value = other_group.get_value()
+                        ay_c, az_c = calc_angles(required_value, obtained_vec)
+
+                        # if the computation of angles is successful, correct the other group:
+                        if ay_c is not None:
+                            other_group.set_angles(ay_c, az_c)
+                            xx = 0
+        return
+
+
+    # In each row where several groups act (due to the extension), 
+    # add one or several correcting groups to adjust the value at this row.
+    def correct_groups(self, B_fixed):
+        # --- FUNCTION: add a new group ---
+        def add_a_group(
+                one_section, counter_row, counter_value, 
+                new_value, id_special,
+                flag_inverse, last_group,
+                groups_on_row,
+                ay_c = None, az_c = None
+            ):
+            new_group = Group__(new_value)
+            if ay_c is not None:
+                # define the group value by setting the angles (to exclude phase shift):
+                new_group.set_angles(ay_c, az_c) 
+            new_group.irs_ = [counter_row]
+            if flag_inverse:
+                new_group.invert_gate()
+            one_section.append(new_group)
+            if counter_value == id_special:
+                if last_group.flag_extended_:
+                    groups_on_row.append(new_group)
+                else:
+                    # if a non-extended group, remove this row from the last group:
+                    last_group.irs_ = np.delete(
+                        last_group.irs_, 
+                        np.where(last_group.irs_ == counter_row)
+                    )
+                    groups_on_row[-1] = new_group
+            else:
+                groups_on_row.append(new_group)
+            return
+        # -----------------------------------------------
+        # calc_angles = lambda value_goal, init_vec: mix.find_correcting_angles_for_Rc(
+        #     value_goal, init_vec, self.circ_.prec_
+        # )
+        calc_angles = lambda value_goal, init_vec: mix.find_correcting_angles_for_Rc_FLOAT(
+            value_goal, init_vec, self.circ_.prec_
+        )
+        # -----------------------------------------------
+        Nr = 1 << self.circ_.input_regs_.nq_
+        N_secs = self.circ_.N_sections_
+        self.grid_values_ = [None] * N_secs
+        for i_section in range(N_secs):
+            # consider a section;
+            # further, "on(at) a row ir" will mean that 
+            # we consider one element with the index ir that lies in this section:
+            one_section = self.groups_[i_section]
+            if one_section is None:
+                continue
+            anc_integers = self.circ_.get_anc_integers_from_section_index(i_section)
+
+            # one_grid[ir] is an array of groups acting on the row ir:
+            one_grid = [None] * Nr 
+
+            # *** Sort all complements according to their positions ***
+            for one_group in one_section: 
+                if one_group.flag_removed_:
+                    continue
+                irs_work = one_group.give_full_irs()
+                for ir in irs_work:
+                    if one_grid[ir] is None:
+                        one_grid[ir] = [one_group]
+                    else:
+                        one_grid[ir].append(one_group)
+                    
+            # *** Find correcting groups for each overlapped element ***
+            for counter_row in range(Nr):
+                if one_grid[counter_row] is None:
+                    continue # some grids are not completely filled;
+                if len(one_grid[counter_row]) == 1:
+                    continue # this element is not overlapped;
+                groups_on_row = one_grid[counter_row]
+                last_group = groups_on_row[-1] 
+
+                # the value that it's necessary to obtain on this row:
+                integers_input_regs = self.circ_.compute_integers_in_input_registers(counter_row)
+                ic = self.circ_.get_column_index_from_anc_integers(anc_integers, integers_input_regs)
+                required_value = B_fixed[counter_row, ic]
+
+                # if the last group is extended, consider all values at the row;
+                # if not, consider all but the last values;
+                Nc_comp = len(groups_on_row) \
+                    if last_group.flag_extended_ else (len(groups_on_row) - 1)
+                groups_comp = groups_on_row[:Nc_comp]
+
+                # compute the vector that obtained after the action of all groups on the row:
+                # (assume that group-gates act on an ancilla qubit initialized in the zero state)
+                obtained_vec = mix.action_of_RyRc_gates(groups_comp)
+
+                # if the combined action of the groups results in a correct value, then 
+                # do not modify groups here:
+                if mix.compare_complex_values(obtained_vec[0], required_value, self.circ_.prec_):
+                    continue
+
+                # try to compute angles for a correcting group:
+                ay_c, az_c = calc_angles(required_value, obtained_vec)
+
+                # if the computation of the angles fails, keep adding groups 
+                # to reverse action of previous groups 
+                # either until the computation is successful
+                # or until all previous groups are reversed:
+                counter_value = 0
+                while ay_c is None:
+                    counter_value += 1
+
+                    # add a reverse group:
+                    add_a_group(
+                        one_section, counter_row, counter_value, 
+                        groups_comp[Nc_comp - counter_value].get_value(), 
+                        1, True, last_group, groups_on_row
+                    )
+
+                    # if all previous groups were reversed, then 
+                    # there is no need to add a correcting group:
+                    if counter_value == Nc_comp:
+                        break
+
+                    # otherwise, try again to compute angles for a correcting gate:
+                    obtained_vec = mix.action_of_RyRc_gates(groups_on_row)
+                    ay_c, az_c = calc_angles(required_value, obtained_vec)
+ 
+                
+                if counter_value < Nc_comp:
+                    # if not all groups are reversed on the row, add a correcting gate:
+                    add_a_group(
+                        one_section, counter_row, counter_value, 
+                        0.6830692, # fake value
+                        0, False, last_group, groups_on_row,
+                        ay_c, az_c
+                    )
+                else:
+                    # if all groups are reversed, add the action of the last group:
+                    oo_grp = Group__(last_group.get_value())
+                    oo_grp.irs_ = [counter_row]
+                    if last_group.flag_inverse_:
+                        oo_grp.invert_gate()
+                    one_section.append(oo_grp)
+                    groups_on_row.append(oo_grp)
+
+            # *** Save the grid ***
+            self.grid_values_[i_section] = one_grid
+        return
+
+
 
 # -------------------------------------------------------------------------------------------------
 # --- Functions ---
@@ -948,37 +1258,6 @@ def compute_Nz(circ, D):
     return N_nz
 
 
-# E.g. for Ry: B_fixed[i,j] = cos(theta/2);
-# B_fixed = A/D;
-# we assume that gates act on the ZERO state, and 
-#   the result is encoded into the amplitude of the ZERO state:
-@jit(nopython=True)
-def REDUNDANT_compute_angles(B_fixed):
-    N = B_fixed.shape[0]
-    Ty       = np.zeros((N,N)); Ty.fill(np.nan)
-    Tc_ampl  = np.zeros((N,N)); Tc_ampl.fill(np.nan)
-    Tc_phase = np.zeros((N,N)); Tc_phase.fill(np.nan)
-    for ir in range(N):
-        for ic in range(N):
-            va = B_fixed[ir,ic]
-            va_r = np.real(va)
-            va_i = np.imag(va)
-            if(np.abs(va) > 0):
-                # a complex value or a pure imaginary value:
-                if(np.abs(va_i) > 0):
-                    v_amp, v_phase = cmath.polar(va)
-                    Tc_ampl[ir, ic] = 2. * np.arccos(v_amp)
-                    Tc_phase[ir, ic] = - 2. * v_phase
-                # a pure real value:
-                else:
-                    Ty[ir,ic] = 2. * np.arccos(va_r)
-    return Ty, Tc_ampl, Tc_phase
-
-
-
-
-
-
 # B_fixed = A/D;
 # grid_sections[i-section][ir] = value-of-matrix-element
 def create_grid_of_sections(circ, B_fixed): 
@@ -1001,7 +1280,9 @@ def create_grid_of_sections(circ, B_fixed):
     return grid_sections
 
 
-# output: groups_R[i-section][i-group] = Group__(value);
+# OPTION 1: within a section, put all rows where 
+# matrix elements have the same values into the same group:
+# OUTPUT: groups_R[i-section][i-group] = Group__(value);
 def create_groups(circ, grid_sections):
     groups_R = [None] * circ.N_sections_
     N = 1 << circ.input_regs_.nq_
@@ -1029,7 +1310,7 @@ def create_groups(circ, grid_sections):
 
             ir_start = ir
             curr_vv = vv
-            while circ.compare_values(vv, curr_vv): # compare with a predefined precision?
+            while mix.compare_complex_values(vv, curr_vv, circ.prec_): # compare with a predefined precision?
                 ir += 1
                 if ir == N:
                     break
@@ -1040,6 +1321,7 @@ def create_groups(circ, grid_sections):
             if keyword not in dict_values:
                 counter_groups += 1
                 groups_R[i_section].append(oo_group) 
+                dict_values[keyword] = counter_groups
 
             # next value:
             vv = curr_vv
@@ -1051,13 +1333,14 @@ def create_groups(circ, grid_sections):
     return groups_R
 
 
-# output: groups_R[i-section][i-group] = Group__(value);
+# OPTION 2:
 # Each group consists only of neighbor rows.
 # E.g. consider two rows with indicies j and k:
 #    j -> |j_reg1>|j_reg2>, 
 #    k -> |k_reg1>|k_reg2>.
 # The rows j and k are considered neighbor if 
 #   |j_reg1 - k_reg1| <= 1 AND |j_reg2 - k_reg2| <= 1.
+# OUTPUT: groups_R[i-section][i-group] = Group__(value);
 def create_groups_neighbor(circ, grid_sections):
     # ------------------------------------------------------------------------
     def find_group(vv, irs_cond_group, dict_values, one_section):
@@ -1125,7 +1408,7 @@ def create_groups_neighbor(circ, grid_sections):
             vv = curr_vv # next angle  
 
             # --- * Find rows where the group sits on ---
-            while circ.compare_values(vv, curr_vv): # compare with a predefined precision?
+            while mix.compare_complex_values(vv, curr_vv, circ.prec_): # compare with a predefined precision?
                 ir += 1
                 if ir == N:
                     break
@@ -1163,7 +1446,6 @@ def create_groups_neighbor(circ, grid_sections):
     return groups_R
 
 
-
 # Compare two matrices.
 def compare_matrices(circ, A_recon, A):
     N = 1 << circ.input_regs_.nq_
@@ -1196,86 +1478,11 @@ def compare_matrices(circ, A_recon, A):
     #     min_min_imag = 0
     # print("Min. abs. nonzero in A-real: {:0.3e}".format(min_min_real))
     # print("Min. abs. nonzero in A-imag: {:0.3e}".format(min_min_imag))
-    print()
     print("Max. abs. diff-real: {:0.3e}".format(max_diff_real))
     print("Max. abs. diff-imag: {:0.3e}".format(max_diff_imag))
     return
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# !!! Currently, is not used !!!
-def extract_fixed_matrix(circ, A, D):
-    B = A/D  # have nan where D had zeros;
-    # B = np.divide(A, D, out=np.zeros_like(A), where = D!=0)
-    B_fixed = np.zeros_like(B)
-    B_prof  = np.zeros_like(B)
-
-    N = B.shape[0]
-    N_check = 1<<circ.input_regs_.nq_
-    if N != N_check:
-        print("Error: the total number of qubits in input registers, nq, should be: ")
-        print("N = 1 << nq, where N is the size of the matrix A (and D).")
-
-    # --- represent the matrix as a set of sections ---
-    grid_B = [None] * circ.N_sections_
-    for ir in range(N):  
-        integers_row = circ.compute_integers_in_input_registers(ir)
-        for ic in range(N):
-            if np.isnan(B[ir, ic]):
-                continue
-            integers_columns = circ.compute_integers_in_input_registers(ic)
-            integers_anc_column = \
-                circ.compute_integers_in_ancilla_registers(integers_row, integers_columns)
-            if None in integers_anc_column:
-                print("Error: specified circuit structure cannot encode the given matrix.")
-                return None
-            
-            i_section = circ.get_section_index(integers_anc_column)
-            if grid_B[i_section] is None:
-                grid_B[i_section] = qucf_str.GridSection__(circ, N, ic)
-            grid_B[i_section].add_row(integers_row, B[ir, ic])
-
-    N_sections = len(grid_B)
-    for i_section in range(N_sections):
-        grid_B[i_section].cut()
-
-    # --- in each section find fixed domains ---
-    for i_section in range(circ.N_sections_):
-        one_section = grid_B[i_section]
-        if one_section is None:
-            continue
-
-
-
-    #     one_section = grid_B[i_section]
-    #     N_rows = len()
-    #     for 
-
-
-
-
-
-    return B_fixed, B_prof
 
 
