@@ -4,6 +4,8 @@ import h5py
 # import pylib.Global_variables as GLO
 import sys
 from scipy.optimize import fsolve
+from numba import jit
+from termcolor import colored
 
 try:
     import pylib.Global_variables as GLO
@@ -636,7 +638,6 @@ def print_matrix_colored(
         sep_c = -1, 
         zero_thresh = 1e-10
     ):
-    from termcolor import colored
 
     ss = A.shape
     ff_line = "{:" + str(ff[0]) + "." + str(ff[1]) + ff[2] + "}"
@@ -1149,11 +1150,55 @@ def find_correcting_angles_for_Rc_MMATH(required_value, init_vec, prec = G_zero_
     # return float(ayc), float(azc)
 
 
+@jit(nopython=True)
+def compare_matrices(B, A, prec = 1e-6):
+    N = A.shape[0]
+
+    if N != B.shape[0]:
+        print("The matrices have different sizes.")
+        return
+
+    for ir in range(N):
+        for ic in range(N):
+            ar, ai = np.real(B[ir, ic]), np.imag(B[ir, ic])
+            br, bi = np.real(A[ir, ic]), np.imag(A[ir, ic])
+
+            flag_not_the_same = False
+            if np.abs(ar - br) > prec:
+                flag_not_the_same = True
+            if np.abs(ai - bi) > prec:
+                flag_not_the_same = True
+
+            if flag_not_the_same:
+                print("<<< WARNING: not the same within precision ", prec, " >>>")
+                # line_print = colored("not the same within precision ", 'red', attrs=['reverse', 'blink'])
+                # print(line_print, prec)
+                return
+    # line_print = colored("the same within precision ", 'green', attrs=['reverse', 'blink'])
+    # print(line_print, prec)
+    print("the same within precision ", prec)
+    return
 
 
+# compute the number of nonzero values in the matrix:
+@jit(nopython=True)
+def compute_Nz(D, prec = 1e-12):
+    N_nz = 0
+    N = D.shape[0]
+    for ir in range(N):
+        for ic in range(N):
+            if np.abs(D[ir, ic]) > prec:
+                N_nz += 1
+    return N_nz
 
 
-
+def print_matrix_max_min(A):
+    max_A = np.max(np.max(np.abs(A)))
+    min_A = np.min(np.min(np.abs(A[np.nonzero(A)])))
+    print("amax. value: \t\t\t{:0.3e}".format(max_A))
+    print("amin.(excl. zero) value: \t{:0.3e}".format(min_A))
+    print()
+    return
 
 
 

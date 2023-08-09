@@ -4,6 +4,8 @@ __pycache__
 
 env
 KIN1D2D
+KIN1D1D/archive/
+pylib/archive/
 
 *.png
 *.jpg

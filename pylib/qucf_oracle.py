@@ -3,7 +3,6 @@ import importlib as imp
 import h5py
 import matplotlib.pyplot as plt
 import sys
-from numba import jit
 import cmath
 import pylib.mix as mix
 import pylib.qucf_structures as qucf_str
@@ -123,7 +122,7 @@ class Regs__: # group of registers of the same type (input or ancilla)
         return
     
     def add_reg(self, name, nq, flag_rel = False):
-        print("Adding a register '{:s}'...".format(name))
+        # print("Adding a register '{:s}'...".format(name))
         if name not in self.names_:
             self.names_.append(name)
             self.regs_[name] = Reg__(name, nq, flag_rel)
@@ -1225,38 +1224,6 @@ class SystemGates__:
 # -------------------------------------------------------------------------------------------------
 # --- Functions ---
 # -------------------------------------------------------------------------------------------------
-def normalize_matrix_A(A, D):
-    min_D = np.min(np.min(np.abs(D[np.nonzero(D)])))
-    max_A = np.max(np.max(np.abs(A)))
-
-    coef_norm = np.max(np.sqrt(np.sum(np.abs(A)**2, axis=1)))
-    A_norm = min_D * A
-    if coef_norm > 1:
-        A_norm = A_norm / coef_norm
-
-    min_A = np.min(np.min(np.abs(A[np.nonzero(A)])))
-    print("amin.(excl. zero) value in D: \t\t{:0.3e}".format(min_D))
-    print("amax. value in A: \t\t\t{:0.3e}".format(max_A))
-    print("amin.(excl. zero) value in A: \t\t{:0.3e}".format(min_A))
-    print()
-
-    max_A_norm = np.max(np.max(np.abs(A_norm)))
-    min_A_norm = np.min(np.min(np.abs(A_norm[np.nonzero(A_norm)])))
-    print("amax. value in A-norm: \t\t\t{:0.3e}".format(max_A_norm))
-    print("amin. (excl. zero)  value in A-norm: \t{:0.3e}".format(min_A_norm))
-
-    return A_norm
-
-
-def compute_Nz(circ, D):
-    N_nz = 0
-    N = D.shape[0]
-    for ir in range(N):
-        for ic in range(N):
-            if np.abs(D[ir, ic]) > circ.prec_:
-                N_nz += 1
-    return N_nz
-
 
 # B_fixed = A/D;
 # grid_sections[i-section][ir] = value-of-matrix-element
@@ -1446,41 +1413,12 @@ def create_groups_neighbor(circ, grid_sections):
     return groups_R
 
 
-# Compare two matrices.
-def compare_matrices(circ, A_recon, A):
-    N = 1 << circ.input_regs_.nq_
 
-    Matrix_diff_real = np.zeros((N, N))
-    Matrix_diff_imag = np.zeros((N, N))
-    for ir in range(N):
-        for ic in range(N):
-            ar, ai = np.real(A_recon[ir, ic]), np.imag(A_recon[ir, ic])
-            br, bi = np.real(A[ir, ic]),       np.imag(A[ir, ic])
-            # Matrix_diff_real[ir,ic] = np.abs(ar - br) / ar
-            # Matrix_diff_imag[ir,ic] = np.abs(ai - bi) / ai
 
-            Matrix_diff_real[ir,ic] = np.abs(ar - br)
-            Matrix_diff_imag[ir,ic] = np.abs(ai - bi)
-            if Matrix_diff_real[ir,ic] > 1e-6:
-                xx = 0
-            if Matrix_diff_imag[ir,ic] > 1e-6:
-                xx = 0
 
-    max_diff_real = np.max(np.max(Matrix_diff_real))
-    max_diff_imag = np.max(np.max(Matrix_diff_imag))
 
-    A_real = np.real(A)
-    A_imag = np.imag(A)
-    # min_min_real = np.min(np.min(np.abs(A_real[np.nonzero(A_real)])))
-    # if len(A_imag[np.nonzero(A_imag)]):
-    #     min_min_imag = np.min(np.min(np.abs(A_imag[np.nonzero(A_imag)])))
-    # else:
-    #     min_min_imag = 0
-    # print("Min. abs. nonzero in A-real: {:0.3e}".format(min_min_real))
-    # print("Min. abs. nonzero in A-imag: {:0.3e}".format(min_min_imag))
-    print("Max. abs. diff-real: {:0.3e}".format(max_diff_real))
-    print("Max. abs. diff-imag: {:0.3e}".format(max_diff_imag))
-    return
+
+
 
 
 
