@@ -132,7 +132,54 @@ def extract_fixed_matrix_from_F(nx, nv, A, D):
     return B_fixed
 
 
-def read_matrix(path, name_file, name_matrix = "A"):
+def read_matrix_sparse(path, name_file, name_matrix = "A"):
+    fname = path + "/" + name_file
+    dd = {}
+    mat = {}
+    print("Reading data from {:s}...".format(name_file))
+    with h5py.File(fname, "r") as f:
+        # ---
+        bg          = f["basic"]
+        date_sim    = bg["date-of-simulation"][()].decode("utf-8")
+        #---
+        bg = f["matrices"]
+        mat["N"]   = bg[name_matrix + "-N"][()]
+        mat["Nnz"] = bg[name_matrix + "-Nnz"][()]
+        mat["columns"] = bg[name_matrix + "-columns"][()]
+        mat["rows"]    = bg[name_matrix + "-rows"][()]
+        values_array = bg[name_matrix + "-values"][()]
+
+        #---
+        bg = f["grids"]
+        x = np.array(bg["x"])
+        v = np.array(bg["v"])
+        Nx = len(x)
+        Nv = len(v)
+        nx = int(np.log2(Nx))
+        nv = int(np.log2(Nv))
+    # ---
+    print("date of the simulation: ", date_sim)
+    print("N, nx, nv = {:d}, {:d}, {:d}".format(mat["N"], nx, nv))
+
+    mat["values"] = np.zeros(mat["Nnz"], dtype=complex)
+    for ii in range(len(values_array)):
+        v = values_array[ii]
+        mat["values"][ii] = complex(v[0], v[1])
+
+    # Save the sparse matrix:
+    dd["A"] = mat
+
+    # add several variables for consistency with quantum computing:
+    dd.update({
+        "x": x, "v": v,
+        "Nx": Nx, "Nv": Nv
+    })
+    dd["regs"] = {"rx": nx, "rv": nv}
+    print("Done.\n")
+    return dd
+
+
+def read_matrix_dense(path, name_file, name_matrix = "A"):
     fname = path + "/" + name_file
     dd = {}
     with h5py.File(fname, "r") as f:
@@ -175,7 +222,6 @@ def read_matrix(path, name_file, name_matrix = "A"):
         "rx": int(np.log2(Nx)),
         "rv": int(np.log2(Nv))
     }
-
     return dd
 
 
@@ -186,7 +232,6 @@ def form_matrix(dd):
         for i_nz in range(dd["rows"][ir], dd["rows"][ir+1]):
             A[ir][dd["columns"][i_nz]] = dd["values"][i_nz]
     dd["A"] = A
-
     A_real = np.zeros((N,N))
     A_imag = np.zeros((N,N))
     for ir in range(N):
@@ -195,7 +240,6 @@ def form_matrix(dd):
             A_imag[ir, ic] = np.imag(A[ir, ic])
     dd["A-real"] = A_real
     dd["A-imag"] = A_imag
-
     return dd
 
 

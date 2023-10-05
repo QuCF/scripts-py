@@ -15,9 +15,7 @@ def reload():
     return
 
 
-
-# read a matrix and store it in a CSR (comprassed sparse row) format
-def read_matrix_store_sparse(path, name, flag_also_complex_conjugate = False):
+def read_matrix_sparse(path, name):
     print("Reading the matrix from: " + name)
     print("from the path: " + path)
     
@@ -49,9 +47,9 @@ def read_matrix_store_sparse(path, name, flag_also_complex_conjugate = False):
 
     # form the sparse matrix:
     Nnz = 0
-    A_values = np.zeros(N*N, dtype=complex)
+    A_values  = np.zeros(N*N, dtype=complex)
     A_columns = np.zeros(N*N, dtype=int)
-    A_rows = np.zeros(N+1, dtype=int)
+    A_rows    = np.zeros(N+1, dtype=int)
     for ir in range(N):
         A_rows[ir] = Nnz
         for ic in range(N):
@@ -59,7 +57,7 @@ def read_matrix_store_sparse(path, name, flag_also_complex_conjugate = False):
             ai = A_imag[ir * N + ic]
             if np.abs(ar) > 0 or np.abs(ai) > 0:
                 Nnz += 1
-                A_values[Nnz-1] = ar + 1j * ai
+                A_values[Nnz-1]  = ar + 1j * ai
                 A_columns[Nnz-1] = ic
     A_rows[N] = Nnz
     A_values  = A_values[:Nnz]
@@ -69,9 +67,7 @@ def read_matrix_store_sparse(path, name, flag_also_complex_conjugate = False):
         "regs": regs,
         "reg-shifts": reg_shifts,
         "reg-names":  reg_names,
-        "A-values":  A_values,
-        "A-rows":    A_rows,
-        "A-columns": A_columns
+        "A":  mix.SparseMatrix(N, Nnz, A_rows, A_columns, A_values),
     }
     return ddA
 
@@ -94,7 +90,7 @@ def read_matrix(path, name):
         A_real = np.array(bg["real"])
         A_imag = np.array(bg["imag"])
     print("date of the simulation: ", date_sim)
-    print("matrix name: ", name_matrix)
+    # print("matrix name: ", name_matrix)
     print("N = {:d}".format(N))
 
     # qubit registers:

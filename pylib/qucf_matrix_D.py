@@ -551,9 +551,20 @@ class TemplateGrid__(SectionsGrid__):
     
 
     def reconstruct_matrix(self, circ):
+        # Reconstruct a sparse matrix (with N rows) with Nnz nonzero values:
+        # ---
+        # > values: Nnz nonzero values in the row-major format:
+        # all nonzero elements in the first row, 
+        # then all nz elements in the second row, and so on.
+        # > columns: Nnz columns of the nonzero values.
+        # > rows: of size [N+1]: 
+        # rows[i] indicates where the i-th row starts in the array "values";
+        # rows[N] = Nnz.
         N = 1 << circ.input_regs_.nq_
-        D = np.zeros((N, N), dtype=complex) # initialize a matrix;
-        N_sections = len(self.sections_)
+        N_sections = len(self.sections_) # nonsparsity
+        Nnz = 0
+        D_sections_columns = np.zeros((N_sections, N), dtype=int);     D_sections_columns.fill(np.nan)
+        D_sections_values  = np.zeros((N_sections, N), dtype=complex); D_sections_values.fill(np.nan)
 
         N_regs = len(circ.input_regs_.names_)
         sizes = np.zeros(N_regs, dtype=int)
@@ -563,19 +574,22 @@ class TemplateGrid__(SectionsGrid__):
         for i_section in range(N_sections):
             one_section  = self.sections_[i_section]
             id_section   = self.ids_sections_[i_section]
-            anc_integers = circ.get_anc_integers_from_section_index(id_section)
-            
+            anc_integers = circ.get_anc_integers_from_section_index(id_section)  
             section_values, irs = one_section.reconstruct(N, sizes)
-
-            xx = 0
-
             for ii, ir in enumerate(irs):
                 # find the column index:
                 integers_input_regs = circ.compute_integers_in_input_registers(ir)
                 ic = circ.get_column_index_from_anc_integers(anc_integers, integers_input_regs)
 
                 # save the matrix element's value:
-                D[ir, ic] = section_values[ii]
+                Nnz += 1
+                D_sections_columns[i_section, ir] = ic
+                D_sections_values[i_section, ir]  = section_values[ii]
+
+        # store in the row-major format:
+        D = mix.construct_sparse_from_sections(
+            N, Nnz, N_sections, D_sections_columns, D_sections_values, circ.prec_
+        )
         return D
 
 
@@ -615,7 +629,7 @@ class Extrapolation__:
             N_sizes[i_grid] = len(self.grids_[i_grid].sizes_bs_)
         if np.any(N_sizes - N_sizes[0]):
             print("Error: a different number of sizes of grids.")
-            exit()
+            sys.exit(-1)
         else:
             print("All grids have the same number of sizes.")
         
@@ -654,7 +668,7 @@ class Extrapolation__:
         N_grids = len(self.grids_)
         if N_grids != (N_regs + 1):
             print("An incorrect number of input registers is provided.")
-            exit()
+            sys.exit(-1)
         D = self.template_.reconstruct_matrix(circ)
         return D
     

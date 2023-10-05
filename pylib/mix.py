@@ -539,6 +539,7 @@ def Ry(ay):
     ])
     return G
 
+
 def Rz(theta):
     th2 = 1j*theta/2.
     resMatrix = np.array([
@@ -546,6 +547,7 @@ def Rz(theta):
         [0.0,          np.exp(th2)]
     ])
     return resMatrix
+
 
 # = Ry * Rz, where the right gate acts first:
 def Rc(ay, az, flag_inv = False):
@@ -680,7 +682,6 @@ def print_subblock_colored(
         sep_c = -1, 
         zero_thresh = 1e-10
     ):
-    from termcolor import colored
     A = A[ir_start:ir_start+Nr_print, ic_start:ic_start+Nc_print]
     print_matrix_colored(A, ff, n_in_row, gap_be, sep_r, sep_c, zero_thresh)
     return
@@ -765,6 +766,7 @@ def create_text_from_list(list_lines):
             res += one_line if res == '' else "\n" + one_line
     return res
 
+
 # compare two strings
 def compare_two_strings(line1, line2):
     if line1.lower() == line2.lower():
@@ -772,12 +774,14 @@ def compare_two_strings(line1, line2):
     else:
         return False
 
+
 # is a string among the string:
 def is_string_among(line1, lines):
     for one_line in lines:
         if compare_two_strings(line1, one_line):
             return True
     return False
+
 
 # find a word in a list:
 def find_word_in_list(list_data, word):
@@ -787,6 +791,7 @@ def find_word_in_list(list_data, word):
     else:
         id_word = None
     return id_word
+
 
 class Counter:
     counter = None
@@ -801,9 +806,11 @@ class Counter:
         self.n_elements += 1
         return self.counter
 
+
 def to_rgb(rgb):
     # rgb = (int, int, int)
     return GLO.to_rgb(rgb)
+
 
 # get a bit array (array of bits) for a given integer;
 # E.g., integert 4 -> |100| if n = 3.
@@ -814,6 +821,7 @@ def find_bit_array_of_int(ii,n):
     for ibit, str1 in enumerate(line_bits):
         res[ibit] = int(str1)
     return np.array(res)
+
 
 # E.g., [1,0,0] -> 4.
 def find_int_from_bit_array(bit_array):
@@ -832,6 +840,7 @@ def insert_indent(original_line, line_to_insert):
     text_res = create_text_from_list(data_lines)
     return text_res
 
+
 def is_digit(n):
     try:
         int(n)
@@ -839,11 +848,13 @@ def is_digit(n):
     except ValueError:
         return  False
 
+
 def is_list_rows_equal(mat):
     sizes_mat = np.zeros(len(mat))
     for id in range(len(mat)):
         sizes_mat[id] = len(mat[id])
     return np.all(sizes_mat == sizes_mat[0])
+
 
 def write_profile_condR(name_var, var_to_write, path_root):
     fname = path_root + "/" + name_var + ".condR_profile"
@@ -938,11 +949,8 @@ def save_dat_plot_2d_file(full_fname, dd):
     os.system(command_line)
 
 
-
-
-
-def is_zero(a):
-    if(np.abs(a) > 1e-14):
+def is_zero(a, prec = 1e-12):
+    if(np.abs(a) > prec):
         return False
     else:
         return True
@@ -980,14 +988,6 @@ def form_complement_for_array_of_integers(N_full, init_array):
     return res_array
 
 
-# def calc_angles_from_values(array_of_values, prec = G_zero_err):
-#     Nv = len(array_of_values)
-#     res_angles = [None] * Nv
-#     for id_v in range(Nv):
-#         res_angles[id_v] = calc_angles_from_a_value(array_of_values[id_v], prec)
-#     return res_angles
-
-
 def calc_angles_from_a_value(v1, prec = G_zero_err):
     if np.abs(v1.imag) < prec:
         # real value:
@@ -1008,6 +1008,7 @@ def action_of_RyRc_gates(groups, init_vector=zero_state_vector()):
     return res_vec
 
 
+@jit(nopython=True)
 def compare_complex_values(a1, a2, prec = G_zero_err):
     flag_same = False
     if np.abs(a1.real - a2.real) <= prec:
@@ -1118,40 +1119,9 @@ def find_correcting_angles_for_Rc_MMATH(required_value, init_vec, prec = G_zero_
     return None, None
 
     
-    # # Compute the angles for two different guesses;
-    # # if the results are the same, take them as the final result:
-    # mp.dps = 50
-    # ayc_v1, azc_v1 = findroot([my_equ1, my_equ2], [0.0, 0.0])
-    # ayc_v2, azc_v2 = findroot([my_equ1, my_equ2], [100.0, 100.0])
-    # if np.abs(ayc_v1 - ayc_v2) < prec and np.abs(azc_v1 - azc_v2) < prec:
-    #     return ayc_v1, azc_v1
-
-    # # Compute the angles several times and save different values of the angles:
-    # N_iter = 10
-    # ayc, azc = findroot([my_equ1, my_equ2], np.random.rand(2))
-    # array_as = [ [ayc, azc] ]
-    # array_counter = [1]
-    # for _ in range(N_iter):
-    #     ayc, azc = findroot([my_equ1, my_equ2], np.random.rand(2))
-    #     counter_aa = 0
-    #     for ay_2, az_2 in array_as:
-    #         counter_aa += 1
-    #         if np.abs(ayc - ay_2) < prec and np.abs(azc - az_2) < prec:
-    #             break
-    #     if counter_aa > len(array_as):
-    #         array_counter.append(1)
-    #         array_as.append([ayc, azc])
-    #     else:
-    #         array_counter[counter_aa-1] +=1
-
-    # # chose angles that occur the most often:
-    # id_max = np.argmax(np.array(array_counter, dtype=int))
-    # ayc, azc = array_as[id_max]
-    # return float(ayc), float(azc)
-
 
 @jit(nopython=True)
-def compare_matrices(B, A, prec = 1e-6):
+def compare_matrices_dense(B, A, prec = 1e-6):
     N = A.shape[0]
 
     if N != B.shape[0]:
@@ -1171,12 +1141,17 @@ def compare_matrices(B, A, prec = 1e-6):
 
             if flag_not_the_same:
                 print("<<< WARNING: not the same within precision ", prec, " >>>")
-                # line_print = colored("not the same within precision ", 'red', attrs=['reverse', 'blink'])
-                # print(line_print, prec)
                 return
-    # line_print = colored("the same within precision ", 'green', attrs=['reverse', 'blink'])
-    # print(line_print, prec)
     print("the same within precision ", prec)
+    return
+
+
+def print_matrix_max_min_dense(A):
+    max_A = np.max(np.max(np.abs(A)))
+    min_A = np.min(np.min(np.abs(A[np.nonzero(A)])))
+    print("amax. value: \t\t\t{:0.3e}".format(max_A))
+    print("amin.(excl. zero) value: \t{:0.3e}".format(min_A))
+    print()
     return
 
 
@@ -1192,15 +1167,304 @@ def compute_Nz(D, prec = 1e-12):
     return N_nz
 
 
-def print_matrix_max_min(A):
-    max_A = np.max(np.max(np.abs(A)))
-    min_A = np.min(np.min(np.abs(A[np.nonzero(A)])))
-    print("amax. value: \t\t\t{:0.3e}".format(max_A))
-    print("amin.(excl. zero) value: \t{:0.3e}".format(min_A))
-    print()
-    return
+
+class SparseMatrix:
+    # A square sparse matrix (with N rows and N columns) with Nnz nonzero values:
+    # ---
+    # > values: Nnz nonzero values in the row-major format:
+    # all nonzero elements in the first row, 
+    # then all nz elements in the second row, and so on.
+    # > columns: Nnz columns of the nonzero values.
+    # > rows: of size [N+1]: 
+    # rows[i] indicates where the i-th row starts in the array "values";
+    # rows[N] = Nnz.
+
+    _N_       = None
+    _Nnz_     = None
+    _rows_    = None
+    _columns_ = None
+    _values_  = None
+
+
+    def __init__(self, N, Nnz, rows, columns, values):
+        if Nnz != len(values):
+            print("Error: a wrong number of values.")
+            return
+        if Nnz != len(columns):
+            print("Error: a wrong number of columns.")
+            return
+        if (N+1) != len(rows):
+            print("Error: a wrong number of items in rows.")
+            return
+        if Nnz != rows[N]:
+            print("Error: the last item in the rows is wrong.")
+            return
+        self._N_   = N
+        self._Nnz_ = Nnz
+        self._rows_    = rows
+        self._columns_ = columns
+        self._values_  = values
+        return
+    
+
+    def is_the_same_as(self, SparseB, prec = 1e-6):
+        Nb, bNnz, brows, bcolumns, bvalues = SparseB.get_data()
+
+        if self._N_ != Nb:
+            line_print = colored(
+                "<<< WARNING: The matrices have different sizes. >>>", 
+                'red', attrs=['reverse', 'blink']
+            )
+            print(line_print)
+            return
+        
+        if self._Nnz_ != bNnz:
+            line_print = colored(
+                "<<< WARNING: The matrices have different numbers of nonzero values. >>>", 
+                'red', attrs=['reverse', 'blink']
+            )
+            print(line_print)
+            return
+        
+        flag_same, line_print = compare_matrices_sparse(
+            self._N_, self._rows_, self._columns_, self._values_,
+                            brows,       bcolumns,       bvalues,
+            prec=prec
+        )
+
+        if flag_same:
+            line_print = colored(line_print, 'green', attrs=['reverse', 'blink'])
+        else:
+            line_print = colored(line_print, 'red', attrs=['reverse', 'blink'])
+        print(line_print)
+        return
+    
+
+    def print_max_min(self):
+        max_A = np.max(np.max(np.abs(self._values_)))
+        min_A = np.min(np.min(np.abs(
+            self._values_[np.nonzero(self._values_)]
+        )))
+        print("amax. value: \t\t\t{:0.3e}".format(max_A))
+        print("amin.(excl. zero) value: \t{:0.3e}".format(min_A))
+        print()
+        return
+    
+
+    def print_matrix_real(self, 
+            ir1, ic1, N,
+            ff=[13, 3, "f"], 
+            n_in_row = 8, 
+            gap_be = " ", 
+            sep_r = -1, 
+            sep_c = -1, 
+            zero_thresh = 1e-10
+        ):
+        A_new = self.get_slice(ir1, ic1, N)
+        print_matrix_colored(A_new.form_dense_matrix().real, ff, n_in_row, gap_be, sep_r, sep_c, zero_thresh)
+        return
+    
+    def print_matrix_imag(self, 
+            ir1, ic1, N,
+            ff=[13, 3, "f"], 
+            n_in_row = 8, 
+            gap_be = " ", 
+            sep_r = -1, 
+            sep_c = -1, 
+            zero_thresh = 1e-10
+        ):
+        A_new = self.get_slice(ir1, ic1, N)
+        print_matrix_colored(A_new.form_dense_matrix().imag, ff, n_in_row, gap_be, sep_r, sep_c, zero_thresh)
+        return
+
+
+    def get_values_in_a_row(self, ir):
+        id_start = self._rows_[ir]
+        id_end   = self._rows_[ir+1]
+        row = np.zeros(id_end - id_start, dtype=complex)
+        counter_r = -1
+        for i_nz in range(id_start, id_end):
+            counter_r += 1
+            row[counter_r] = self._values_[i_nz]
+        return row
+    
+
+    def copy(self):
+        A_new = SparseMatrix(
+            self._N_,
+            self._Nnz_,
+            np.array(self._rows_),
+            np.array(self._columns_),
+            np.array(self._values_)
+        )
+        return A_new
+    
+
+    def get_slice(self, ir1, ic1, N):
+        # (ir1, ic1) are the upper left starting row and column indices;
+        # N is the number of rows (and columns) in the desired slice
+        ir2 = ir1 + N
+        ic2 = ic1 + N
+
+        if N < 0:
+            ir_temp = ir1
+            ir1, ir2 = ir2, ir_temp
+            ic_temp = ic1
+            ic1, ic2 = ic2, ic_temp
+            N = np.abs(N)
+
+        if N == 0:
+            print("Error in SparseMatrix: the slice cannot have zero size.")
+            sys.exit(-1)    
+        if ir1 < 0 or ir1 >= self._N_:
+            print("Error in SparseMatrix: the row index is beyond the size of the matrix.")
+            sys.exit(-1)
+        if ir2 < 0 or ir2 > self._N_:
+            print("Error in SparseMatrix: the row index is beyond the size of the matrix.")
+            sys.exit(-1)
+        if ic1 < 0 or ic1 >= self._N_:
+            print("Error in SparseMatrix: the column index is beyond the size of the matrix.")
+            sys.exit(-1)
+        if ic2 < 0 or ic2 > self._N_:
+            print("Error in SparseMatrix: the column index is beyond the size of the matrix.")
+            sys.exit(-1)
+
+        rows_new    = np.zeros(N+1,       dtype=int)
+        columns_new = np.zeros(self._Nnz_, dtype=int)
+        values_new  = np.zeros(self._Nnz_, dtype=complex)
+        Nnz_new = 0
+
+        counter_row = -1
+        for ir in range(ir1, ir2):
+            counter_row += 1
+            rows_new[counter_row] = Nnz_new
+            for i_nz in range(self._rows_[ir], self._rows_[ir+1]):
+                ic = self._columns_[i_nz]
+                if ic < ic1:
+                    continue
+                if ic >= ic2:
+                    continue
+                Nnz_new += 1
+                columns_new[Nnz_new - 1] = ic - ic1
+                values_new[Nnz_new - 1]  = self._values_[i_nz]
+        rows_new[-1] = Nnz_new
+        columns_new = columns_new[:Nnz_new]   
+        values_new  = values_new[:Nnz_new]     
+        A_new = SparseMatrix(N, Nnz_new, rows_new, columns_new, values_new)
+        return A_new
+
+
+    def get_data(self):
+        return self._N_, self._Nnz_, self._rows_, self._columns_, self._values_
+    
+
+    def get_values(self):
+        return self._values_
+    
+
+    def get_Nnz(self):
+        return self._Nnz_
+    
+
+    def get_N(self):
+        return self._N_
+    
+
+    def v(self, ii):
+        return self._values_[ii]
+    
+
+    def get_matrix_element(self, ir, ic):
+        if ir < 0 or ir >= self._N_:
+            print("Error in SparseMatrix: the row index is beyond the size of the matrix.")
+            sys.exit(-1)
+        if ic < 0 or ic >= self._N_:
+            print("Error in SparseMatrix: the column index is beyond the size of the matrix.")
+            sys.exit(-1)
+        columns = self._columns_[self._rows_[ir]:self._rows_[ir+1]]
+        id_v = np.where(columns == ic)[0]
+        if len(id_v) == 0:
+            return 0.0
+        if len(id_v) == 1:
+            return self._values_[self._rows_[ir] + id_v[0]]
+        else:
+            print("Error: the SparseMatrix has several identical column indices.")
+            sys.exit(-1)
+
+
+    def form_dense_matrix(self):
+        A_dense = np.zeros((self._N_, self._N_), dtype=complex)
+        for ir in range(self._N_):
+            for i_nz in range(self._rows_[ir], self._rows_[ir+1]):
+                A_dense[ir, self._columns_[i_nz]] = self._values_[i_nz]
+        return A_dense
 
 
 
 
+
+@jit(nopython=True)
+def compare_matrices_sparse(
+    Na, arows, acolumns, avalues, 
+        brows, bcolumns, bvalues, 
+    prec = 1e-6
+):
+    for ir in range(Na):
+        if arows[ir] != brows[ir]:
+            return False, "<<< WARNING: The matrices have different structures. >>>"
+        for i_nz in range(arows[ir], arows[ir+1]):
+            if acolumns[i_nz] != bcolumns[i_nz]:
+                return False, "<<< WARNING: The matrices have different structures. >>>"
+            if not compare_complex_values(avalues[i_nz], bvalues[i_nz], prec=prec):
+                return False, "<<< WARNING: The matrices are not the same. >>>"
+    return True, "The matrices are the same"
+                
+
+def form_sparse_matrix(A, prec = 1e-12):
+    N = A.shape[0]
+    Nnz = compute_Nz(A, prec)
+    D_rows    = np.zeros(N + 1, dtype=int)
+    D_columns = np.zeros(Nnz,   dtype=int)
+    D_values  = np.zeros(Nnz,   dtype=complex)
+    form_sparse_matrix_CORE(A, N, D_rows, D_columns, D_values, prec)
+    D_sparse = SparseMatrix(N, Nnz, D_rows, D_columns, D_values)
+    return D_sparse
+
+
+@jit(nopython=True)
+def form_sparse_matrix_CORE(A, N, D_rows, D_columns, D_values, prec):
+    counter_v = -1
+    for ir in range(N):
+        D_rows[ir] = counter_v + 1
+        for ic in range(N):
+            v = A[ir, ic]
+            if np.abs(v) > prec:
+                counter_v += 1
+                D_columns[counter_v] = ic
+                D_values[counter_v]  = v
+    D_rows[N] = counter_v + 1
+    return 
+
+
+def construct_sparse_from_sections(
+        N, Nnz, N_sections, D_sections_columns, D_sections_values, prec
+    ):
+    D_rows    = np.zeros(N + 1, dtype=int)
+    D_columns = np.zeros(Nnz,   dtype=int)
+    D_values  = np.zeros(Nnz,   dtype=complex)
+
+    N_values = 0
+    for ir in range(N):
+        D_rows[ir] = N_values
+        for i_section in range(N_sections):
+            v1 = D_sections_values[i_section, ir]
+            if not is_zero(v1, prec=prec):
+                N_values += 1
+                D_values[N_values-1]  = v1
+                D_columns[N_values-1] = D_sections_columns[i_section, ir]
+    if N_values != Nnz:
+        print("Error: not all values are taken into account")
+        sys.exit(-1)
+    D_rows[N] = Nnz
+    return SparseMatrix(N, Nnz, D_rows, D_columns, D_values)
 

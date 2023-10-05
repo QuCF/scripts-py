@@ -377,7 +377,7 @@ class Circuit__:
         ay, az = angles
         if ay is None:
             print("Error in line generation: ay is None")
-            exit()
+            sys.exit(-1)
         line_angles = self.ff_prec_.format(ay)
         if az is not None:
             line_angles = self.ff_prec_.format(az) + " " + line_angles
@@ -641,9 +641,11 @@ class SystemGates__:
     # the functions SystemGates__.merge_groups and SystemGates__.correct_groups.
     def reconstruct_matrix_using_GROUPS(self):    
         N = 1 << self.circ_.input_regs_.nq_
-        A_recon = np.zeros((N, N), dtype=complex) # reconstructed matrix
-        print("Matrix size: {:d}".format(N))
-        for i_section in range(self.circ_.N_sections_):
+        N_sections = len(self.groups_) # nonsparsity
+        Nnz = 0
+        D_sections_columns = np.zeros((N_sections, N), dtype=int);     D_sections_columns.fill(np.nan)
+        D_sections_values  = np.zeros((N_sections, N), dtype=complex); D_sections_values.fill(np.nan)
+        for i_section in range(N_sections):
             one_section = self.groups_[i_section]
             if not one_section:
                 continue # empty section
@@ -656,17 +658,27 @@ class SystemGates__:
                     ir = one_group.irs_[counter_row]
                     integers_input_regs = self.circ_.compute_integers_in_input_registers(ir)
                     ic = self.circ_.get_column_index_from_anc_integers(anc_integers, integers_input_regs)
-                    A_recon[ir, ic] = one_group.get_value()
+
+                    # save the matrix element's value:
+                    Nnz += 1
+                    D_sections_columns[i_section, ir] = ic
+                    D_sections_values[i_section, ir]  = one_group.get_value()
+        A_recon = mix.construct_sparse_from_sections(
+            N, Nnz, N_sections, D_sections_columns, D_sections_values, self.circ_.prec_
+        )
         return A_recon
     
+
 
     # should be called after SystemGates__.correct_groups;
     # Consider extended and correcting gates to reconstruct the matrix;
     def reconstruct_matrix_using_GRID(self): 
         N = 1 << self.circ_.input_regs_.nq_
-        A_recon = np.zeros((N, N), dtype=complex) # reconstructed matrix
-        print("Matrix size: {:d}".format(N))
-        for i_section in range(self.circ_.N_sections_):
+        N_sections = len(self.groups_) # nonsparsity
+        Nnz = 0
+        D_sections_columns = np.zeros((N_sections, N), dtype=int);     D_sections_columns.fill(np.nan)
+        D_sections_values  = np.zeros((N_sections, N), dtype=complex); D_sections_values.fill(np.nan)
+        for i_section in range(N_sections):
             one_grid = self.grid_values_[i_section]
             if not one_grid:
                 continue 
@@ -682,13 +694,18 @@ class SystemGates__:
                 # compute the value of the matrix element: 
                 res_value, _ = mix.action_of_RyRc_gates(one_grid[ir])
 
-                # save the value:
-                A_recon[ir, ic] = res_value
+                # save the matrix element's value:
+                Nnz += 1
+                D_sections_columns[i_section, ir] = ic
+                D_sections_values[i_section, ir]  = res_value
+        A_recon = mix.construct_sparse_from_sections(
+            N, Nnz, N_sections, D_sections_columns, D_sections_values, self.circ_.prec_
+        )
         return A_recon
     
 
     def count_groups(self):
-        print("N = {:d}".format(1 << self.circ_.input_regs_.nq_))
+        # print("N = {:d}".format(1 << self.circ_.input_regs_.nq_))
         counter_groups = 0
         for i_section in range(self.circ_.N_sections_):
             one_section = self.groups_[i_section]
@@ -747,18 +764,6 @@ class SystemGates__:
                         file_lines.append(one_line)
                         counter_gates += 1 if flag_Ry else 2
                         counter_compl_gates += 1
-
-                    # control_integers = one_group.irs_
-                    # N_integers = len(control_integers)
-                    # line_gate = "igate" if one_group.flag_inverse_ else "gate" 
-                    # for i_integer in range(N_integers): 
-                    #     ir = control_integers[i_integer]
-                    #     input_integers = self.circ_.compute_integers_in_input_registers(ir)
-                    #     one_line = "   " + line_gate + " {:s} ae 1 {:s} ".format(gate_type, line_angle)
-                    #     one_line += self.circ_.write_line_for_control_integers(input_integers, True)
-                    #     one_line += "end_gate"
-                    #     file_lines.append(one_line)
-                    #     counter_gates += 1 if flag_Ry else 2
             file_lines.append("end_with")
 
         # --- build section CIRCUIT_STRUCTURE ---
@@ -769,7 +774,7 @@ class SystemGates__:
         ff.close()
 
         # --- Log data ---
-        self.circ_.print_structure()
+        # self.circ_.print_structure()
         print("N-gates: {:d}".format(counter_gates))
         print("N-gates (assuming Rc as a single gate): {:d}".format(counter_compl_gates))
         return
@@ -834,7 +839,7 @@ class SystemGates__:
                 ic = i_row + shift_rc
                 if ic < 0 or ic >= N:
                     continue
-                if np.abs(B_fixed[i_row, ic]) < self.circ_.prec_:
+                if np.abs(B_fixed.get_matrix_element(i_row, ic)) < self.circ_.prec_:
                     N_zeros += 1
                     irs_zeros[N_zeros-1] = i_row
             irs_exclude = np.concatenate((irs_exclude, irs_zeros[:N_zeros]))
@@ -893,12 +898,10 @@ class SystemGates__:
                     # restrict the complement range:
                     if len(irs_exclude) > 0:
                         if len(irs_exclude) == 1:
-                            xx = 0
                             one_group.irs_complement_ = np.delete(
                                 one_group.irs_complement_,
                                 np.where(one_group.irs_complement_ == irs_exclude[0])
                             )
-                            xx = 0
                         else:
                             irs_complement_new = np.zeros(
                                 (len(one_group.irs_complement_)), 
@@ -910,7 +913,6 @@ class SystemGates__:
                                     N_new_compl += 1
                                     irs_complement_new[N_new_compl-1] = ir_comp
                             one_group.irs_complement_ = irs_complement_new[:N_new_compl]
-                            xx = 0
         return 
 
 
@@ -1153,7 +1155,7 @@ class SystemGates__:
                 # the value that it's necessary to obtain on this row:
                 integers_input_regs = self.circ_.compute_integers_in_input_registers(counter_row)
                 ic = self.circ_.get_column_index_from_anc_integers(anc_integers, integers_input_regs)
-                required_value = B_fixed[counter_row, ic]
+                required_value = B_fixed.get_matrix_element(counter_row, ic)
 
                 # if the last group is extended, consider all values at the row;
                 # if not, consider all but the last values;
@@ -1229,21 +1231,22 @@ class SystemGates__:
 # grid_sections[i-section][ir] = value-of-matrix-element
 def create_grid_of_sections(circ, B_fixed): 
     grid_sections = circ.init_grid_of_sections()
-    N = B_fixed.shape[0]  
+    N, _, B_rows, B_columns, B_values = B_fixed.get_data()
     for ir in range(N):  
         integers_row = circ.compute_integers_in_input_registers(ir)
-        for ic in range(N):
-            if np.abs(B_fixed[ir, ic]) > 0:
-                integers_columns = circ.compute_integers_in_input_registers(ic)
-                integers_anc_column = \
-                    circ.compute_integers_in_ancilla_registers(integers_row, integers_columns)
-                
-                if None in integers_anc_column:
-                    print("Error: specified circuit structure cannot encode the given matrix.")
-                    return None
-                
-                i_section = circ.get_section_index(integers_anc_column)
-                grid_sections[i_section][ir] = B_fixed[ir, ic]
+        for i_nz in range(B_rows[ir], B_rows[ir+1]):
+            ic = B_columns[i_nz]
+            v = B_values[i_nz]
+            integers_columns = circ.compute_integers_in_input_registers(ic)
+            integers_anc_column = \
+                circ.compute_integers_in_ancilla_registers(integers_row, integers_columns)
+            
+            if None in integers_anc_column:
+                print("Error: specified circuit structure cannot encode the given matrix.")
+                return None
+            
+            i_section = circ.get_section_index(integers_anc_column)
+            grid_sections[i_section][ir] = v
     return grid_sections
 
 
@@ -1332,7 +1335,7 @@ def create_groups_neighbor(circ, grid_sections):
 
                 is_neighbor = True
                 for counter_row in range(N_min):
-                    ir_cond =  irs_cond_group[N_cond_rows - counter_row - 1]
+                    ir_cond = irs_cond_group[N_cond_rows - counter_row - 1]
                     ir_prev = prev_group.irs_[N_prev_rows - counter_row - 1]
                     ints_cond = circ.compute_integers_in_input_registers(ir_cond)
                     ints_prev = circ.compute_integers_in_input_registers(ir_prev)
@@ -1410,6 +1413,7 @@ def create_groups_neighbor(circ, grid_sections):
                 if ir >= N:
                     break
                 curr_vv = section_one[ir]
+        xx = 0
     return groups_R
 
 
