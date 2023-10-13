@@ -347,17 +347,17 @@ def plot_colored_A_structure(
     plt.gca().invert_yaxis()
     plt.xlabel('columns', fontsize = fontsize)
     plt.ylabel("rows", fontsize = fontsize)
-    ax.tick_params(axis='both', which='major', labelsize=fontsize)
+    ax.tick_params(axis='both', which='major', labelsize=fontsize-5)
 
     # draw submatrices' boundaries:
     ax.axvline(x = Ns-0.5, color = 'black', linewidth = 0.5, linestyle = "-")
     ax.axhline(y = Ns-0.5, color = 'black', linewidth = 0.5, linestyle = "-")
 
     # text submatrices' names:
-    ax.text(49,  14, r'$\textbf{F}$', fontsize=fontsize)
-    ax.text(121, 14, r'$\textbf{C}^E$', fontsize=fontsize)
-    ax.text(49, 77, r'$\textbf{C}^f$', fontsize=fontsize)
-    ax.text(121, 77, r'$\textbf{S}$', fontsize=fontsize)
+    ax.text(46,  14, r'$\textbf{F}$', fontsize=fontsize)
+    ax.text(116, 14, r'$\textbf{C}^E$', fontsize=fontsize)
+    ax.text(46, 77, r'$\textbf{C}^f$', fontsize=fontsize)
+    ax.text(116, 77, r'$\textbf{S}$', fontsize=fontsize)
 
     # draw blocks' boundaries:
     for ii in range(1, Nx):
