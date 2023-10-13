@@ -14,8 +14,8 @@ dd_null = {'project_name': 'NULL\ PROJECT'}
 
 # type compatible with the complex-like type that ORB5 understands
 comp_datatype = np.dtype([
-    ('real', np.float),
-    ('imaginary', np.float)
+    ('real', float),
+    ('imaginary', float)
 ])
 
 # ---------------------------------------------------------------------------
