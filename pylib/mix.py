@@ -610,6 +610,22 @@ def print_array(A, ff=[13, 3, "f"], n_in_row = 7, flag_remove_zeros=False, coef_
     print(str_out)
 
 
+def print_numbered_array(eig, ff=[13, 3, "f"], n_in_row = 7):
+    if ff is None:
+        if isinstance(eig[0], complex):
+           ff = [21, 3, "e"] 
+    ff_line = "{:" + str(ff[0]) + "." + str(ff[1]) + ff[2] + "}"
+    final_line = ""
+    for ii in range(len(eig)):
+        line = "{:4d}: " + ff_line
+        line = line.format(ii, eig[ii])
+        final_line += line + "\t\t"
+        if np.mod(ii+1,n_in_row) == 0 and ii > 0:
+            final_line +="\n"
+    print(final_line)
+    return
+
+
 def print_matrix(A, ff=[13, 3, "f"], n_in_row = 8, gap_be = " ", sep_r = -1, sep_c = -1):
     ss = A.shape
     ff_line = "{:" + str(ff[0]) + "." + str(ff[1]) + ff[2] + "}"
