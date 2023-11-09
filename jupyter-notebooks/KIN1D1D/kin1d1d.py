@@ -79,6 +79,7 @@ def normalize_matrix_A(A, D_F, nv):
     coef_norm_D_2 = np.min(np.min(np.abs(D_values[np.nonzero(D_values)])))
     coef_norm_D = np.min([coef_norm_D_1, coef_norm_D_2])
 
+    # !!!
     coef_norm_A = np.max(np.sqrt(np.sum(np.abs(A_values)**2)))
 
     values_norm = A_norm.get_values()
