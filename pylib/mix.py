@@ -1484,3 +1484,19 @@ def construct_sparse_from_sections(
     D_rows[N] = Nnz
     return SparseMatrix(N, Nnz, D_rows, D_columns, D_values)
 
+
+
+# Find the number of qubits in the counter register of the compression gagdet
+# to compute a product of N_mult matrices.
+def compute_nc_for_compression_gadget(N_mult):
+    qubit_for_adder = 1
+    if N_mult == 1 or N_mult == 2:
+        # in this case, an incrementor is used instead of an adder;
+        # the incrementor does not require an additional qubit;
+        return N_mult 
+    nc_core = int(np.ceil(np.log2(N_mult)))
+    nc = nc_core + (1 - np.ceil(np.mod(N_mult,2**nc_core)/N_mult)) + qubit_for_adder
+    return int(nc)
+
+
+

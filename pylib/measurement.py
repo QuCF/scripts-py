@@ -325,10 +325,22 @@ class MeasOracle__:
                     self.read_qsvt_matrix_inversion(name_qsvt, gr_one)
                 if self.dd_[name_qsvt]["type"] == "gaussian-arcsin":
                     self.read_qsvt_gaussian_arcsin(name_qsvt, gr_one)
-                if self.dd_[name_qsvt]["type"] == "hamiltonian-sim":
+                if self.dd_[name_qsvt]["type"] == "QSVT-ham":
                     self.read_qsvt_hamiltonian_sim(name_qsvt, gr_one)   
+                if self.dd_[name_qsvt]["type"] == "QSP-ham":
+                    self.read_qsp_hamiltonian_parameters(name_qsvt, gr_one) 
         return
 
+
+    def read_qsp_hamiltonian_parameters(self, name_qsp, gr):
+        self.dd_[name_qsp]["dt"] = gr["dt"][()]
+        self.dd_[name_qsp]["nt"] = gr["nt"][()]
+
+        print("\n--- QSP: {:s} ---".format(name_qsp))
+        print("dt: {:0.3f}".format(self.dd_[name_qsp]["dt"]))
+        print("nt: {:0.3f}".format(self.dd_[name_qsp]["nt"]))
+        return
+    
 
     def read_qsvt_matrix_inversion(self, name_qsvt, gr):
         self.dd_[name_qsvt]["kappa"] = gr["kappa"][()]
@@ -464,3 +476,71 @@ class MeasOracle__:
         for iq in range(n_reg):
             int_repr += 2**(n_reg-iq-1) * input_state[shift_reg + iq]
         return int_repr
+    
+
+    # id_init_state is an ID of an initial state that you would like to consider.
+    def read_qsp_ham_results(self, name_qsp, id_init_state):
+        Nt = self.dd_[name_qsp]["nt"]
+        ndata = self.dd_["nq"] - self.dd_["na"] # n of nonancilla qubits;
+        N = 1 << ndata # size of the vector where information is stored
+        print("State-vector size: {:d}".format(N))
+
+        # N_recheck = np.prod(np.array(Ns_split))
+        # if N != N_recheck:
+        #     print("\nERROR: wrong vector dimensionality (Ns-split): ")
+        #     print(Ns_split)
+        #     print("prod(Ns-split): {:d}".format(N_recheck))
+        #     print("whilst state-vector size: {:d}".format(N))
+        #     return
+        
+        res_vector = np.zeros([Nt+1, N], dtype=complex)
+        with h5py.File(self.dd_["fname"], "r") as f:
+            gr = f[name_qsp]
+            for it in range(Nt+1):
+                res_vector[it,:] = get_complex(np.array(
+                    gr["ampls-{:d}-{:d}".format(it, id_init_state)]
+                ))
+
+        return res_vector
+    
+    def qsp_get_time_grid(self, name_qsp, norm_of_H):
+        Nt = self.dd_[name_qsp]["nt"] + 1
+        dt = self.dd_[name_qsp]["dt"]
+        t = np.zeros(Nt)
+
+        for it in range(Nt):
+            t[it] = dt * it
+        t = t/norm_of_H
+        return t
+    
+
+    # The fields in the resulting dictionary dd are:
+    # dd["ampls"][i-iter][i-ampl] is the state amplidute
+    #   where i-iter = [0, dd["N-mult"])
+    #   and the range i-ampl can change for different i-iter.
+    # dd["states"][i-iter][i-ampl] is the bitstring.
+    def read_gadget(self, name_gadget, id_init_state):
+        dd = {}
+        with h5py.File(self.dd_["fname"], "r") as f:
+            gr = f[name_gadget]
+
+            dd["N-mult"] = gr["N_mult"][()]
+            dd["counter-qubits"] = np.transpose(np.array(gr["counter-qubits"]))
+
+            # read amplitudes:
+            ampls = [None] * dd["N-mult"]
+            for i_iter in range(dd["N-mult"]):
+                ampls[i_iter] = get_complex(np.array(
+                    gr["ampls-{:d}-{:d}".format(i_iter, id_init_state)]
+                ))
+            dd["ampls"] = ampls
+
+            # read states:
+            states = [None] * dd["N-mult"]
+            for i_iter in range(dd["N-mult"]):
+                states[i_iter] = np.transpose(np.array(
+                    gr["states-{:d}-{:d}".format(i_iter, id_init_state)]
+                )) 
+            dd["states"] = states
+        return dd
+    

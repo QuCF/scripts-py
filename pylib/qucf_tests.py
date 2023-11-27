@@ -49,6 +49,8 @@ class TESTS__:
         else:
             subprocess.run([self.path_launch_, test_name, path_work], stdout=subprocess.DEVNULL)
 
+        print("\nRead the project: ", test_name)
+        print("from the folder: ", self.path_gl_ + path_test)
         oor = mse.MeasOracle__(flag_print=self.__flag_print_all_details_)
         oor.pname_ = test_name
         oor.path_  = self.path_gl_ + path_test
@@ -828,7 +830,7 @@ class TESTS__:
         oor.read_qsvt()
 
         QSVT_rescaling = 0.98 # coefficient used for the calculation of the QSVT angles:
-        mu = oor.dd_["qsvt-gauss"]["mu"]
+        mu = oor.dd_["gauss"]["mu"]
 
         alpha_0 = oor.constants_["alpha_0"]
         alpha_1 = oor.constants_["alpha"]
@@ -921,7 +923,7 @@ class TESTS__:
         En_est_qc = En_est_array[id_max_qc]
 
         # classical integral:
-        F_cl = F_gauss_asin(x_qc[0:Nx_half], oor.dd_["qsvt-gauss"]["mu"]/scaling_mu, QSVT_rescaling, -0.5)
+        F_cl = F_gauss_asin(x_qc[0:Nx_half], oor.dd_["gauss"]["mu"]/scaling_mu, QSVT_rescaling, -0.5)
         En_cl = np.sum(np.abs(F_cl)**2) / Nx_half
 
         # analytical error:
@@ -981,7 +983,7 @@ class TESTS__:
         oor.read_qsvt()
 
         QSVT_rescaling = 0.98 # coefficient used for the calculation of the QSVT angles:
-        mu = oor.dd_["qsvt-gauss"]["mu"]
+        mu = oor.dd_["gauss"]["mu"]
 
         alpha_0 = oor.constants_["alpha_0"]
         alpha_1 = oor.constants_["alpha"]

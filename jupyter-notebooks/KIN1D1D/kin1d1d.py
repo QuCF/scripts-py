@@ -79,8 +79,15 @@ def normalize_matrix_A(A, D_F, nv):
     coef_norm_D_2 = np.min(np.min(np.abs(D_values[np.nonzero(D_values)])))
     coef_norm_D = np.min([coef_norm_D_1, coef_norm_D_2])
 
-    # !!!
-    coef_norm_A = np.max(np.sqrt(np.sum(np.abs(A_values)**2)))
+    # coef_norm_A = np.max(np.sqrt(np.sum(np.abs(A_values)**2)))
+    # print("norm 1: ", np.max(np.sqrt(np.sum(np.abs(A_values)**2))))
+
+    coef_norm_A = 0
+    for ir in range(A.get_N()):
+        temp = np.sqrt(np.sum(np.abs(A.get_values_in_a_row(ir))**2))
+        if temp > coef_norm_A:
+            coef_norm_A = temp
+    print("norm of the matrix: ", coef_norm_A)
 
     values_norm = A_norm.get_values()
     values_norm *= coef_norm_D 
@@ -125,8 +132,8 @@ def extract_fixed_profile_matrix_from_F(nx, nv, A_F, D_F):
         return mix.SparseMatrix(N, Nnz, rows, columns, values)
 
 
-    # -------------------------------------------------------------------
-    # --- second normalization ---
+    # ----------------------------------------------------------------------------------------------
+    # --- rescaling of the matrix elements taking into account the influence of the oracle OF, OM ---
     B = A_F.copy()
     B_values = B.get_values()
     for ii in range(B.get_Nnz()):
@@ -193,7 +200,7 @@ def extract_fixed_profile_matrix_from_F(nx, nv, A_F, D_F):
 
     # *** Extract profile elements ***
     
-    # --- diag points at the left and right boundaries ---
+    # --- diag points at the left and right spatial boundaries ---
     for ir in range(Nv//2):
         B_prel_profile[2, ir] = B.get_matrix_element(ir, ir)
         Nnz_profile += 1
@@ -202,7 +209,7 @@ def extract_fixed_profile_matrix_from_F(nx, nv, A_F, D_F):
         B_prel_profile[2, ir] = B.get_matrix_element(ir, ir)
         Nnz_profile += 1
 
-    # --- off-diag points at the left and right boundaries ---
+    # --- off-diag points at the left and right spatial boundaries ---
     for ir in range(Nv//2):
         B_prel_profile[3, ir] = B.get_matrix_element(ir, ir + Nv)
         B_prel_profile[4, ir] = B.get_matrix_element(ir, ir + 2*Nv)
@@ -213,7 +220,7 @@ def extract_fixed_profile_matrix_from_F(nx, nv, A_F, D_F):
         B_prel_profile[0, ir] = B.get_matrix_element(ir, ir - 2*Nv)
         Nnz_profile += 2
 
-    # --- off-diag bulk points ---
+    # --- off-diag spatial bulk points ---
     for ir in range(Nv, Nv*(Nx-1)):
         B_prel_profile[1, ir] = B.get_matrix_element(ir, ir - Nv)
         B_prel_profile[3, ir] = B.get_matrix_element(ir, ir + Nv)
@@ -226,10 +233,6 @@ def extract_fixed_profile_matrix_from_F(nx, nv, A_F, D_F):
     B_sparse_fixed   = map_prel_to_sparse(Nnz_fixed,   B_prel_fixed,   1)
     B_sparse_profile = map_prel_to_sparse(Nnz_profile, B_prel_profile, Nv)
 
-
-
-
-
     return B_sparse_fixed, B_sparse_profile
 
 
@@ -241,10 +244,12 @@ def get_B_C_matrix(nv, C):
     return B_C
 
 
-def get_B_S_matrix(S):
+def get_B_S_matrix(nx, nv, S):
+    Nx, Nv = 1<<nx, 1<<nv
     B_S = S.copy()
     B_values = B_S.get_values()
-    B_values[0] /= 0.50
+    for ix in range(Nx):
+        B_values[ix*Nv] /= 0.50
     return B_S
 
 
