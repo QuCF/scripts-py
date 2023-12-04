@@ -972,11 +972,14 @@ def is_zero(a, prec = 1e-12):
         return True
 
 
-def get_Rc_angles(complex_value):
+def get_Rc_angles(complex_value, flag_sin = False):
     import cmath
     ww = cmath.polar(complex_value)
     angle_z = -2.*ww[1]
-    angle_y =  2.*np.arccos(ww[0])
+    if flag_sin:
+        angle_y =  2.*np.arcsin(ww[0])
+    else:
+        angle_y =  2.*np.arccos(ww[0])
     return angle_z, angle_y
 
 
@@ -1004,6 +1007,7 @@ def form_complement_for_array_of_integers(N_full, init_array):
     return res_array
 
 
+# --- Find angles for the Rc or Ry gates ---
 def calc_angles_from_a_value(v1, prec = G_zero_err):
     if np.abs(v1.imag) < prec:
         # real value:
