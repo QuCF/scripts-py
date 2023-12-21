@@ -287,7 +287,7 @@ class Block__:
 
 # ********************************************************************************************
 # * Store a matrix in the form of a grid of sections.
-# * Each section consists of nexted blocks.
+# * Each section consists of nested blocks.
 # * Each smallest block consists of sets.
 # * Each set consists of neighboring elements of the same value.
 # ********************************************************************************************

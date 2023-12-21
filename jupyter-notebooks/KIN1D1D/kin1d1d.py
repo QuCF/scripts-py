@@ -8,13 +8,131 @@ from numba import jit
 
 import pylib.mix as mix
 import pylib.qucf_oracle as qucf_o
+import pylib.qucf_read as qucf_r
+import pylib.qucf_matrix_D as qucf_m
 
 
 def reload():
     mix.reload_module(mix)
     mix.reload_module(qucf_o)
+    mix.reload_module(qucf_r)
+    mix.reload_module(qucf_m)
     return
 
+
+class ASE_:
+    path_ = "../simulations/KIN1D1D/"
+    path_D_ = "../simulations/KIN1D1D/matrices-D/"
+    file_name_oracle_ = "circuit_OH"
+    path_test_ = "../simulations/test-simplified/"
+    path_cl_ = "../results/KIN1D1D-results/"
+    path_save_ = "../results/KIN1D1D-results/figs/"
+    file_name_oracle_ = "circuit_OH"
+
+    cl_ = None
+
+    dd_44_ = None
+    dd_45_ = None
+    dd_54_ = None
+    dd_55_ = None
+
+    oo_extr_ = None
+
+    nx_work_ = None
+    nv_work_ = None
+    Nx_work_ = None
+    Nv_work_ = None
+    Nvar_work_ = None
+    v_work_ = None
+
+    # The submatrix of the matrix D (D is of size 2 * Nvar_work_) related to the submatrix F.
+    # The submatrix DF_work_ is of size Nvar_work_.
+    DF_work_ = None
+
+    # The matrices _orig are submatrices of A after the first normalization:
+    F_orig_, CE_orig_, Cf_orig_, S_orig_ = None, None, None, None
+
+    # The matrices B are submatrices of A after the second normalization:
+    BF_fixed_, BF_prof_ = None, None
+    B_CE_, B_Cf_, BS_ = None, None, None
+
+
+    def read_D_matrices(self):
+        # Matrix D is a matrix representation of a part of a block encoding oracle 
+        #   which does not include the suboracle OH.
+        print()
+        self.dd_44_ = qucf_r.read_matrix_sparse(self.path_D_, "flat_44_OUTPUT.hdf5") #  nv = 4, nx = 4 
+
+        print()
+        self.dd_45_ = qucf_r.read_matrix_sparse(self.path_D_, "flat_45_OUTPUT.hdf5") #  nv = 4, nx = 5 
+
+        print()
+        self.dd_54_ = qucf_r.read_matrix_sparse(self.path_D_, "flat_54_OUTPUT.hdf5") #  nx = 5, nv = 4
+
+        print()
+        self.dd_55_ = qucf_r.read_matrix_sparse(self.path_D_, "flat_55_OUTPUT.hdf5") #  nx = 5, nv = 5
+        return
+
+
+    def read_plasma_matrices(self):
+        self.cl_ = {}
+        print()
+        for ii in range(4, 9):
+            for kk in range(4, 9):
+                self.cl_["{:d}{:d}".format(ii, kk)] = read_matrix_sparse(
+                    self.path_cl_, "out_{:d}_{:d}_w1.2_Lx100_Lv4_flat.hdf5".format(ii, kk)
+                )
+        return
+    
+
+    def create_D_template(self):
+        # --- Create a template to extrapolate the matrix D for larger sizes ---
+        grid_44 = qucf_m.SectionsGrid__(init_matrix_and_circuit(self.dd_44_))
+        grid_45 = qucf_m.SectionsGrid__(init_matrix_and_circuit(self.dd_45_))
+        grid_54 = qucf_m.SectionsGrid__(init_matrix_and_circuit(self.dd_54_))
+
+        self.oo_extr_ = qucf_m.Extrapolation__([grid_44, grid_45, grid_54])
+        self.oo_extr_.create_extrapolation_template()
+        return
+    
+
+    def choose_a_case(self, nx, nv):
+        self.nx_work_, self.nv_work_ = int(nx), int(nv)
+        self.dd_c_ = self.cl_["{:d}{:d}".format(nx, nv)]
+
+        self.Nx_work_ = 1 << self.nx_work_
+        self.Nv_work_ = 1 << self.nv_work_
+        self.Nvar_work_ = self.Nx_work_ * self.Nv_work_
+        self.v_work_ = self.dd_c_["v"]
+
+        # compute the matrix DF of the chosen size:
+        oo_circ = init_circuit_of_defined_size(self.nx_work_, self.nv_work_, 3, 3)
+        self.DF_work_ = self.oo_extr_.reconstruct_matrix(oo_circ)
+
+        # first normalization: normalize the plasma matrix to nonsparsity and norm:
+        A_norm = normalize_matrix_A(self.dd_c_["A"], self.DF_work_, self.nv_work_)
+
+        # extract the submatrices:
+        # here, the submatrices are secondly renormalized to the values of the matrix D
+        # (which is necessary to compute parameters of quantum gates)
+        self.F_orig_ = A_norm.get_slice(0, 0, self.Nvar_work_)
+        self.BF_fixed_, self.BF_prof_ = extract_fixed_profile_matrix_from_F(
+            self.nx_work_, self.nv_work_, self.F_orig_, self.DF_work_
+        )
+
+        self.CE_orig_ = A_norm.get_slice(0, self.Nvar_work_, self.Nvar_work_)
+        self.B_CE_ = get_B_C_matrix(self.nv_work_, self.CE_orig_)
+
+        self.Cf_orig_ = A_norm.get_slice(self.Nvar_work_, 0, self.Nvar_work_)
+        self.B_Cf_ = get_B_C_matrix(self.nv_work_, self.Cf_orig_)
+
+        self.S_orig_ = A_norm.get_slice(self.Nvar_work_, self.Nvar_work_, self.Nvar_work_)
+        self.BS_ = get_B_S_matrix(self.nx_work_, self.nv_work_, self.S_orig_)
+
+        return
+
+# --------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------
 
 def init_circuit_kin(dd_q):
     circ = qucf_o.Circuit__()
@@ -30,6 +148,21 @@ def init_circuit_kin(dd_q):
     circ.set_regs(inp, anc)
     circ.compute_N_registers()
     return circ
+
+
+# --- Returnes only the part of the matrix D related to the submatrix F ---
+def init_matrix_and_circuit(dd):
+    circ = init_circuit_kin(dd)
+
+    N_input_regs = len(circ.input_regs_.names_)
+    N = 1
+    size_D = [None] * N_input_regs
+    for i_reg in range(N_input_regs): # from the most to the least significant qubit;
+        N1 = 1 << circ.input_regs_.nqs_[i_reg]
+        N *= N1
+        size_D[i_reg] = N1 
+    D_F = dd["A"].get_slice(0,0,N)
+    return [circ, D_F, size_D]
 
 
 def init_circuit_of_defined_size(nx, nv, nx_rel = 3, nv_rel = 3):
@@ -48,20 +181,6 @@ def init_circuit_of_defined_size(nx, nv, nx_rel = 3, nv_rel = 3):
     return circ
 
 
-def init_matrix_and_circuit(dd):
-    circ = init_circuit_kin(dd)
-
-    N_input_regs = len(circ.input_regs_.names_)
-    N = 1
-    size_D = [None] * N_input_regs
-    for i_reg in range(N_input_regs): # from the most to the least significant qubit;
-        N1 = 1 << circ.input_regs_.nqs_[i_reg]
-        N *= N1
-        size_D[i_reg] = N1 
-    D_F = dd["A"].get_slice(0,0,N)
-    return [circ, D_F, size_D]
-
-
 def normalize_matrix_A(A, D_F, nv):
     # --- original matrix ---
     print("original matrix >>>")
@@ -69,7 +188,7 @@ def normalize_matrix_A(A, D_F, nv):
 
     A_norm = A.copy()
 
-    A_values = A.get_values()
+    # A_values = A.get_values()
     D_values = D_F.get_values()
 
     # --- normalization ---
@@ -98,6 +217,7 @@ def normalize_matrix_A(A, D_F, nv):
     print("normalized matrix >>>")
     A_norm.print_max_min()
     return A_norm
+
 
 # > A_F is a normalized F submatrix (first normalized to A-max and nonsparsity).
 # > D_F is a part of the matrix D related to the F submatrix. 
