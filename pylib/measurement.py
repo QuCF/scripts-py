@@ -116,8 +116,8 @@ class MeasOracle__:
 
             self.dd_["date-of-sim"]  = bg["date-of-simulation"][()].decode("utf-8")
             self.dd_["project-name"] = bg["project-name"][()].decode("utf-8")
-            self.dd_["launch-path"] = bg["launch-path"][()].decode("utf-8")
-            self.dd_["path-inputs"] = bg["path-inputs"][()].decode("utf-8")
+            self.dd_["launch-path"]  = bg["launch-path"][()].decode("utf-8")
+            self.dd_["path-inputs"]  = bg["path-inputs"][()].decode("utf-8")
 
             self.dd_["nq"] = bg["nq"][()]
             self.dd_["na"] = bg["na"][()]
@@ -175,53 +175,6 @@ class MeasOracle__:
             print("Name of the simulation is", self.dd_["project-name"])
             print("Simulation has been performed ", self.dd_["date-of-sim"])
         return
-    
-
-
-    # OUTPUT:
-    # > reg_inp_states[regname][id-input-state][id-state-in-INPUT-superposition] = integer,
-    #   where integer represents the bitstring stored in the register regname.
-    # > reg_out_states[regname][id-input-state][id-state-in-OUPUT-superposition] = integer,
-    def form_reg_input_output_states(self):
-        # ---
-        def state_to_reg_states(reg_states, i_state, state_superposition):
-            N_loc_states = len(state_superposition)
-            for i_reg in range(N_regs):
-                reg_states[reg_names[i_reg]][i_state] = np.zeros(N_loc_states, dtype=int)
-
-            for counter_state in range(N_loc_states):
-                one_state = state_superposition[counter_state]
-                for i_reg in range(N_regs):
-                    bitstring = one_state[reg_shifts[i_reg]:reg_shifts[i_reg + 1]]
-                    reg_states[reg_names[i_reg]][i_state][counter_state] = \
-                            mix.find_int_from_bit_array(bitstring)
-            return reg_states
-
-        # ----
-        reg_names = self.dd_["reg-names"] # names start from the most significant register;
-        N_regs = len(reg_names)
-        N_states = len(self.init_states_)
-        
-        # initialization
-        reg_inp_states = {}
-        reg_out_states = {}
-        reg_shifts = [None] * (N_regs+1)
-        for i_reg in range(N_regs):
-            reg_inp_states[reg_names[i_reg]] = [None] * N_states
-            reg_out_states[reg_names[i_reg]] = [None] * N_states
-            reg_shifts[i_reg] = self.dd_["reg-shifts"][reg_names[i_reg]]
-        reg_shifts[-1] = self.dd_["nq"]
-
-        # in each input superposition of states...
-        for i_state in range(N_states):
-            inp_state_superposition = self.init_states_[i_state]["state"]
-            out_state_superposition = self.output_all_states_[i_state]["state"]
-
-            # ...might be several states
-            reg_inp_states = state_to_reg_states(reg_inp_states, i_state, inp_state_superposition)
-            reg_out_states = state_to_reg_states(reg_out_states, i_state, out_state_superposition)
-        return reg_inp_states, reg_out_states
-
 
 
     def set_zero_ancillae_work_states(self, id_input_state = 0):
@@ -234,6 +187,13 @@ class MeasOracle__:
         self.work_states_ = self.output_all_states_[id_input_state]["state"]
         self.work_ampls_  = self.output_all_states_[id_input_state]["ampls"]
         return
+    
+
+    # The chosen initial state becomes the work state
+    def set_init_work_states(self, id_input_state = 0):
+        self.work_states_ = self.init_states_[id_input_state]["state"]
+        self.work_ampls_  = self.init_states_[id_input_state]["ampls"]
+        return  
 
 
     def print_full_states(self):
@@ -321,52 +281,22 @@ class MeasOracle__:
                 self.dd_[name_qsvt] = {}
                 self.dd_[name_qsvt]["type"] = gr_one["type"][()].decode("utf-8")
                 self.dd_[name_qsvt]["eps"] = gr_one["eps"][()]
-                if self.dd_[name_qsvt]["type"] == "matrix-inversion":
-                    self.read_qsvt_matrix_inversion(name_qsvt, gr_one)
-                if self.dd_[name_qsvt]["type"] == "gaussian-arcsin":
-                    self.read_qsvt_gaussian_arcsin(name_qsvt, gr_one)
-                if self.dd_[name_qsvt]["type"] == "hamiltonian-sim":
-                    self.read_qsvt_hamiltonian_sim(name_qsvt, gr_one)   
+                self.dd_[name_qsvt]["par"] = gr_one["function-parameter"][()]
+                self.dd_[name_qsvt]["rescaling_factor"] = gr_one["rescaling_factor"][()]
+                if self.dd_[name_qsvt]["type"] == "QSP-ham":
+                    self.read_qsp_hamiltonian_parameters(name_qsvt, gr_one) 
         return
 
 
-    def read_qsvt_matrix_inversion(self, name_qsvt, gr):
-        self.dd_[name_qsvt]["kappa"] = gr["kappa"][()]
+    def read_qsp_hamiltonian_parameters(self, name_qsp, gr):
+        self.dd_[name_qsp]["dt"] = gr["dt"][()]
+        self.dd_[name_qsp]["nt"] = gr["nt"][()]
 
-        print("\n--- QSVT: {:s}".format(name_qsvt))
-        print("kappa: {:0.3f}".format(self.dd_[name_qsvt]["kappa"]))
+        print("\n--- QSP: {:s} ---".format(name_qsp))
+        print("dt: {:0.3f}".format(self.dd_[name_qsp]["dt"]))
+        print("nt: {:0.3f}".format(self.dd_[name_qsp]["nt"]))
         return
-
-
-    def read_qsvt_gaussian_arcsin(self, name_qsvt, gr):
-        self.dd_[name_qsvt]["mu"] = gr["mu"][()]
-
-        print("\n--- QSVT: {:s}".format(name_qsvt))
-        print("mu: {:0.3f}".format(self.dd_[name_qsvt]["mu"]))
-        return
-
-
-    def read_qsvt_hamiltonian_sim(self, name_qsvt, gr):
-        self.dd_[name_qsvt]["dt"] = gr["dt"][()]
-        self.dd_[name_qsvt]["nt"] = gr["nt"][()]
-
-        print("\n--- QSVT: {:s}".format(name_qsvt))
-        print("dt: {:0.3f}".format(self.dd_[name_qsvt]["dt"]))
-        print("nt: {:0.3f}".format(self.dd_[name_qsvt]["nt"]))
-        return
-
-
-    def read_qsvt_angles(self, str_parity):
-        # str_parity: "odd" or "even"
-
-        with h5py.File(self.dd_["fname"], "r") as f:
-            for ii in range(len(self.dd_["qsvt-names"])):
-                name_qsvt = self.dd_["qsvt-names"][ii]
-                gr = f[name_qsvt]
-                self.dd_[name_qsvt]["angles-{:s}".format(str_parity)] = \
-                    np.array(gr["angles-{:s}".format(str_parity)])
-        return
-
+    
 
     def get_x_grid(self, reg_x):
         reg_nq = self.dd_["regs"][reg_x]
@@ -375,12 +305,24 @@ class MeasOracle__:
         return x_grid
 
 
-    ## Return the variable defined by "vars_enc" as a function of x.
+    ## --- The MAIN function to extract data from output states ---
+    # Return the variable whose amplitudes as a function of x are entangled with "vars_enc".
     # The space dependence on x is encoded in the register "reg_x".
     # "vars_enc" is {"reg_name_1": int_to_choose, ...};
     # "reg_x" is the register name  where different combinations of qubits
     #           correspond to different points on x.
     # All other registers are set to zero.
+    # -----------------------
+    # Prior to launch this function, one needs to call either set_zero_ancillae_work_states()
+    #   or set_work_states()
+    # -----------------------
+    # FOR INSTANCE, assume that there are two registers: rd and rx,
+    #   where rd = 0 corresponds to the variable V1 and rd = 1 -> V2, and 
+    #   where rx has nx qubits and encodes the space dependence of the variables V1 and V2 on x.
+    #   Then, to extract V2(x), launch 
+    #       get_var_x({"rd": 0}, "rx")
+    # -----------------------
+    # If "vars_enc" = {}, take all states.
     def get_var_x(self, vars_enc, reg_x):
         nx = self.dd_["regs"][reg_x]
         Nx = 2**nx
@@ -388,13 +330,14 @@ class MeasOracle__:
 
         # prepare a dictionary that defines a set of states to be considered:
         var_to_cons = {}
-        for reg_name in self.dd_["reg-names"]:
-            if reg_name in vars_enc.keys():
-                var_to_cons[reg_name] = vars_enc[reg_name]
-                continue
-            if reg_name != reg_x:
-                var_to_cons[reg_name] = 0
-                continue
+        if bool(vars_enc):
+            for reg_name in self.dd_["reg-names"]:
+                if reg_name in vars_enc.keys():
+                    var_to_cons[reg_name] = vars_enc[reg_name]
+                    continue
+                if reg_name != reg_x:
+                    var_to_cons[reg_name] = 0
+                    continue
 
         # consider only states for the chosen variable encoded by vars_enc:
         ampls_to_search, states_to_search = self.get_several_chosen_work_states(var_to_cons)
@@ -413,28 +356,31 @@ class MeasOracle__:
     # The dictionary indicates which state the register must have.
     # If the register is not defined in the dictionary, then 
     # the function returns all available states from this register.
+    # If "choice" = {}, taje all output states for the chosen input state.
     def get_several_chosen_work_states(self, choice):
-        ch_state = self.create_mask(choice, -1)
-
         one_step_states = self.work_states_
         one_step_ampls  = self.work_ampls_
 
-        nstates, _ = one_step_states.shape
-        res_ampls = []
-        res_states = []
-        for i_state in range(nstates):
-            flag_choose = True
-            one_state = one_step_states[i_state]
-            for i_qubit in range(self.dd_["nq"]):
-                if ch_state[i_qubit] == -1:
-                    continue
-                if ch_state[i_qubit] != one_state[i_qubit]:
-                    flag_choose = False
-                    break
-            if flag_choose:
-                res_ampls.append(one_step_ampls[i_state])
-                res_states.append(one_state)
-        return res_ampls, res_states
+        if bool(choice):
+            ch_state = self.create_mask(choice, -1)
+            nstates, _ = one_step_states.shape
+            res_ampls = []
+            res_states = []
+            for i_state in range(nstates):
+                flag_choose = True
+                one_state = one_step_states[i_state]
+                for i_qubit in range(self.dd_["nq"]):
+                    if ch_state[i_qubit] == -1:
+                        continue
+                    if ch_state[i_qubit] != one_state[i_qubit]:
+                        flag_choose = False
+                        break
+                if flag_choose:
+                    res_ampls.append(one_step_ampls[i_state])
+                    res_states.append(one_state)
+            return res_ampls, res_states
+        else:
+            return one_step_ampls, one_step_states
 
 
     ## Create an 1D-array of size 2**nq (nq - number of qubits in the circuit),
@@ -464,3 +410,116 @@ class MeasOracle__:
         for iq in range(n_reg):
             int_repr += 2**(n_reg-iq-1) * input_state[shift_reg + iq]
         return int_repr
+    
+
+    # id_init_state is an ID of an initial state that you would like to consider.
+    def read_qsp_ham_results(self, name_qsp, id_init_state):
+        Nt = self.dd_[name_qsp]["nt"]
+        ndata = self.dd_["nq"] - self.dd_["na"] # n of nonancilla qubits;
+        N = 1 << ndata # size of the vector where information is stored
+        print("State-vector size: {:d}".format(N))
+
+        # N_recheck = np.prod(np.array(Ns_split))
+        # if N != N_recheck:
+        #     print("\nERROR: wrong vector dimensionality (Ns-split): ")
+        #     print(Ns_split)
+        #     print("prod(Ns-split): {:d}".format(N_recheck))
+        #     print("whilst state-vector size: {:d}".format(N))
+        #     return
+        
+        res_vector = np.zeros([Nt+1, N], dtype=complex)
+        with h5py.File(self.dd_["fname"], "r") as f:
+            gr = f[name_qsp]
+            for it in range(Nt+1):
+                res_vector[it,:] = get_complex(np.array(
+                    gr["ampls-{:d}-{:d}".format(it, id_init_state)]
+                ))
+
+        return res_vector
+    
+
+    def qsp_get_time_grid(self, name_qsp, norm_of_H):
+        Nt = self.dd_[name_qsp]["nt"] + 1
+        dt = self.dd_[name_qsp]["dt"]
+        t = np.zeros(Nt)
+
+        for it in range(Nt):
+            t[it] = dt * it
+        t = t/norm_of_H
+        return t
+    
+
+    # The fields in the resulting dictionary dd are:
+    # dd["ampls"][i-iter][i-ampl] is the state amplidute
+    #   where i-iter = [0, dd["N-mult"])
+    #   and the range i-ampl can change for different i-iter.
+    # dd["states"][i-iter][i-ampl] is the bitstring.
+    def read_gadget(self, name_gadget, id_init_state):
+        dd = {}
+        with h5py.File(self.dd_["fname"], "r") as f:
+            gr = f[name_gadget]
+
+            dd["N-mult"] = gr["N_mult"][()]
+            dd["counter-qubits"] = np.transpose(np.array(gr["counter-qubits"]))
+
+            # read amplitudes:
+            ampls = [None] * dd["N-mult"]
+            for i_iter in range(dd["N-mult"]):
+                ampls[i_iter] = get_complex(np.array(
+                    gr["ampls-{:d}-{:d}".format(i_iter, id_init_state)]
+                ))
+            dd["ampls"] = ampls
+
+            # read states:
+            states = [None] * dd["N-mult"]
+            for i_iter in range(dd["N-mult"]):
+                states[i_iter] = np.transpose(np.array(
+                    gr["states-{:d}-{:d}".format(i_iter, id_init_state)]
+                )) 
+            dd["states"] = states
+        return dd
+    
+
+    # OUTPUT:
+    # > reg_inp_states[regname][id-input-state][id-state-in-INPUT-superposition] = integer,
+    #   where integer represents the bitstring stored in the register regname.
+    # > reg_out_states[regname][id-input-state][id-state-in-OUPUT-superposition] = integer,
+    def form_reg_input_output_states(self):
+        # ---
+        def state_to_reg_states(reg_states, i_state, state_superposition):
+            N_loc_states = len(state_superposition)
+            for i_reg in range(N_regs):
+                reg_states[reg_names[i_reg]][i_state] = np.zeros(N_loc_states, dtype=int)
+
+            for counter_state in range(N_loc_states):
+                one_state = state_superposition[counter_state]
+                for i_reg in range(N_regs):
+                    bitstring = one_state[reg_shifts[i_reg]:reg_shifts[i_reg + 1]]
+                    reg_states[reg_names[i_reg]][i_state][counter_state] = \
+                            mix.find_int_from_bit_array(bitstring)
+            return reg_states
+
+        # ----
+        reg_names = self.dd_["reg-names"] # the names start from the most significant register;
+        N_regs = len(reg_names)
+        N_states = len(self.init_states_)
+        
+        # initialization
+        reg_inp_states = {}
+        reg_out_states = {}
+        reg_shifts = [None] * (N_regs+1)
+        for i_reg in range(N_regs):
+            reg_inp_states[reg_names[i_reg]] = [None] * N_states
+            reg_out_states[reg_names[i_reg]] = [None] * N_states
+            reg_shifts[i_reg] = self.dd_["reg-shifts"][reg_names[i_reg]]
+        reg_shifts[-1] = self.dd_["nq"]
+
+        # in each input superposition of states...
+        for i_state in range(N_states):
+            inp_state_superposition = self.init_states_[i_state]["state"]
+            out_state_superposition = self.output_all_states_[i_state]["state"]
+
+            # ...might be several states
+            reg_inp_states = state_to_reg_states(reg_inp_states, i_state, inp_state_superposition)
+            reg_out_states = state_to_reg_states(reg_out_states, i_state, out_state_superposition)
+        return reg_inp_states, reg_out_states

@@ -610,6 +610,22 @@ def print_array(A, ff=[13, 3, "f"], n_in_row = 7, flag_remove_zeros=False, coef_
     print(str_out)
 
 
+def print_numbered_array(eig, ff=[13, 3, "f"], n_in_row = 7):
+    if ff is None:
+        if isinstance(eig[0], complex):
+           ff = [21, 3, "e"] 
+    ff_line = "{:" + str(ff[0]) + "." + str(ff[1]) + ff[2] + "}"
+    final_line = ""
+    for ii in range(len(eig)):
+        line = "{:4d}: " + ff_line
+        line = line.format(ii, eig[ii])
+        final_line += line + "\t\t"
+        if np.mod(ii+1,n_in_row) == 0 and ii > 0:
+            final_line +="\n"
+    print(final_line)
+    return
+
+
 def print_matrix(A, ff=[13, 3, "f"], n_in_row = 8, gap_be = " ", sep_r = -1, sep_c = -1):
     ss = A.shape
     ff_line = "{:" + str(ff[0]) + "." + str(ff[1]) + ff[2] + "}"
@@ -956,11 +972,14 @@ def is_zero(a, prec = 1e-12):
         return True
 
 
-def get_Rc_angles(complex_value):
+def get_Rc_angles(complex_value, flag_sin = False):
     import cmath
     ww = cmath.polar(complex_value)
     angle_z = -2.*ww[1]
-    angle_y =  2.*np.arccos(ww[0])
+    if flag_sin:
+        angle_y =  2.*np.arcsin(ww[0])
+    else:
+        angle_y =  2.*np.arccos(ww[0])
     return angle_z, angle_y
 
 
@@ -988,6 +1007,7 @@ def form_complement_for_array_of_integers(N_full, init_array):
     return res_array
 
 
+# --- Find angles for the Rc or Ry gates ---
 def calc_angles_from_a_value(v1, prec = G_zero_err):
     if np.abs(v1.imag) < prec:
         # real value:
@@ -1467,4 +1487,20 @@ def construct_sparse_from_sections(
         sys.exit(-1)
     D_rows[N] = Nnz
     return SparseMatrix(N, Nnz, D_rows, D_columns, D_values)
+
+
+
+# Find the number of qubits in the counter register of the compression gagdet
+# to compute a product of N_mult matrices.
+def compute_nc_for_compression_gadget(N_mult):
+    qubit_for_adder = 1
+    if N_mult == 1 or N_mult == 2:
+        # in this case, an incrementor is used instead of an adder;
+        # the incrementor does not require an additional qubit;
+        return N_mult 
+    nc_core = int(np.ceil(np.log2(N_mult)))
+    nc = nc_core + (1 - np.ceil(np.mod(N_mult,2**nc_core)/N_mult)) + qubit_for_adder
+    return int(nc)
+
+
 

@@ -8,14 +8,273 @@ from numba import jit
 
 import pylib.mix as mix
 import pylib.qucf_oracle as qucf_o
+import pylib.qucf_read as qucf_r
+import pylib.qucf_matrix_D as qucf_m
 
 
 def reload():
     mix.reload_module(mix)
     mix.reload_module(qucf_o)
+    mix.reload_module(qucf_r)
+    mix.reload_module(qucf_m)
     return
 
 
+# --------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------
+class ASE_:
+    # path to the final results from QuCF simulations: 
+    path_ = "../simulations/KIN1D1D/"
+
+    # path to the QuCF simulations performed without the oracle OH:
+    path_D_ = "../simulations/KIN1D1D/matrices-D/"
+
+    file_name_oracle_ = "circuit_OH"
+    path_test_ = "../simulations/test-simplified/"
+    path_cl_ = "../results/KIN1D1D-results/"
+    path_save_ = "../results/KIN1D1D-results/figs/"
+    file_name_oracle_ = "circuit_OH"
+
+    # output file with final QuCF simualtions of the ASE:
+    output_qucf_ = "flat_OUTPUT.hdf5"
+
+    cl_ = None
+
+    dd_44_ = None
+    dd_45_ = None
+    dd_54_ = None
+    dd_55_ = None
+
+    oo_extr_ = None
+
+    nx_work_ = None
+    nv_work_ = None
+    Nx_work_ = None
+    Nv_work_ = None
+    Nvar_work_ = None
+    v_work_ = None
+
+    # classical data for the chosen nx_work_ and nv_work_:
+    cl_work_ = None 
+
+    # The submatrix of the matrix D (D is of size 2 * Nvar_work_) related to the submatrix F.
+    # The submatrix DF_work_ is of size Nvar_work_.
+    DF_work_ = None
+
+    # The matrices _orig are submatrices of A after the first normalization:
+    F_orig_, CE_orig_, Cf_orig_, S_orig_ = None, None, None, None
+
+    # The matrices B are submatrices of A after the second normalization:
+    BF_fixed_, BF_prof_ = None, None
+    B_CE_, B_Cf_, BS_ = None, None, None
+
+
+    def read_D_matrices(self):
+        # Matrix D is a matrix representation of a part of a block encoding oracle 
+        #   which does not include the suboracle OH.
+        print()
+        self.dd_33_ = qucf_r.read_matrix_sparse(self.path_D_, "flat_33_OUTPUT.hdf5") #  nv = 4, nx = 4
+
+        print()
+        self.dd_44_ = qucf_r.read_matrix_sparse(self.path_D_, "flat_44_OUTPUT.hdf5") #  nv = 4, nx = 4 
+
+        print()
+        self.dd_45_ = qucf_r.read_matrix_sparse(self.path_D_, "flat_45_OUTPUT.hdf5") #  nv = 4, nx = 5 
+
+        print()
+        self.dd_54_ = qucf_r.read_matrix_sparse(self.path_D_, "flat_54_OUTPUT.hdf5") #  nx = 5, nv = 4
+
+        # print()
+        # self.dd_55_ = qucf_r.read_matrix_sparse(self.path_D_, "flat_55_OUTPUT.hdf5") #  nx = 5, nv = 5
+        return
+
+
+    def read_plasma_matrices(self):
+        self.cl_ = {}
+        print()
+        self.cl_["33"] = read_matrix_sparse(self.path_cl_, "w12/out_3_3_w1.2_Lx100_Lv4_flat.hdf5")
+        for ii in range(4, 9):
+            for kk in range(4, 9):
+                self.cl_["{:d}{:d}".format(ii, kk)] = read_matrix_sparse(
+                    self.path_cl_, "out_{:d}_{:d}_w1.2_Lx100_Lv4_flat.hdf5".format(ii, kk)
+                )
+        return
+    
+
+    def create_D_template(self):
+        # --- Create a template to extrapolate the matrix D for larger sizes ---
+        grid_44 = qucf_m.SectionsGrid__(init_matrix_and_circuit(self.dd_44_))
+        grid_45 = qucf_m.SectionsGrid__(init_matrix_and_circuit(self.dd_45_))
+        grid_54 = qucf_m.SectionsGrid__(init_matrix_and_circuit(self.dd_54_))
+
+        self.oo_extr_ = qucf_m.Extrapolation__([grid_44, grid_45, grid_54])
+        self.oo_extr_.create_extrapolation_template()
+        return
+    
+
+    def choose_a_case(self, nx, nv):
+        self.nx_work_, self.nv_work_ = int(nx), int(nv)
+        self.cl_work_ = self.cl_["{:d}{:d}".format(nx, nv)]
+
+        self.Nx_work_ = 1 << self.nx_work_
+        self.Nv_work_ = 1 << self.nv_work_
+        self.Nvar_work_ = self.Nx_work_ * self.Nv_work_
+        self.v_work_ = self.cl_work_["v"]
+
+        # compute the matrix DF of the chosen size:
+        if self.nx_work_ == 3 and self.nv_work_ == 3:
+            self.DF_work_ = self.dd_33_["A"]
+        else:
+            oo_circ = init_circuit_of_defined_size(self.nx_work_, self.nv_work_, 3, 3)
+            self.DF_work_ = self.oo_extr_.reconstruct_matrix(oo_circ)
+
+        # first normalization: normalize the plasma matrix to nonsparsity and the matrix norm:
+        A_norm = normalize_matrix_A(self.cl_work_["A"], self.DF_work_, self.nv_work_)
+
+        # extract the submatrices:
+        # here, the submatrices are secondly renormalized to the values of the matrix D
+        # (which is necessary to compute parameters of quantum gates in the operator OH)
+        # A = | F,  CE |
+        #     | Cf, S  |
+        self.F_orig_ = A_norm.get_slice(0, 0, self.Nvar_work_)
+        self.BF_fixed_, self.BF_prof_ = extract_fixed_profile_matrix_from_F(
+            self.nx_work_, self.nv_work_, self.F_orig_, self.DF_work_
+        )
+
+        self.CE_orig_ = A_norm.get_slice(0, self.Nvar_work_, self.Nvar_work_)
+        self.B_CE_ = get_B_C_matrix(self.nv_work_, self.CE_orig_)
+
+        self.Cf_orig_ = A_norm.get_slice(self.Nvar_work_, 0, self.Nvar_work_)
+        self.B_Cf_ = get_B_C_matrix(self.nv_work_, self.Cf_orig_)
+
+        self.S_orig_ = A_norm.get_slice(self.Nvar_work_, self.Nvar_work_, self.Nvar_work_)
+        self.BS_ = get_B_S_matrix(self.nx_work_, self.nv_work_, self.S_orig_)
+        return
+    
+
+# --------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------
+# --- FUNCTIONS FOR SUBMATRICIES' PARAMETERS ---
+# Here, oo_ase is the object of the ASE_ class.
+# --------------------------------------------------------------------------------------------
+def preliminary_parameters_for_submatrices(oo_ase):
+    Nx = oo_ase.Nx_work_
+    Nv = oo_ase.Nv_work_
+    # Nvh = oo_ase.Nv_work_//2
+    N = Nx*Nv
+
+    # *** normalized v-grid ***
+    v_grid_norm = np.array(oo_ase.B_Cf_.get_slice(0,0, oo_ase.Nv_work_).get_values().real)
+    v_norm_max = np.max(np.abs(v_grid_norm))
+    # print("v-norm_max: \t{:0.3e}".format(v_norm_max))
+
+    v_bulk_S = oo_ase.BS_.get_matrix_element(1,1) 
+    v_edge_S = oo_ase.BS_.get_matrix_element(0,0)
+    # print("S: v-bulk: {:20.3e}".format(v_bulk_S))
+    # print("S: v-edge: {:20.3e}".format(v_edge_S))
+
+    coef_ratio = oo_ase.Nv_work_/(oo_ase.Nv_work_ - 1)
+    # coef_ratio_2 = Nvh / (Nvh - 1)
+
+    print("nx: {:d}".format(oo_ase.nx_work_))
+    print("nv: {:d}".format(oo_ase.nv_work_))
+    # print("Nvh: {:d}".format(Nvh))
+    
+    # --- Submatrix Cf ---
+    # v-profile: assume that v << 1:
+    # parameters for the SIN gate:
+    alpha_0 = - v_norm_max
+    alpha_1 = v_norm_max * coef_ratio
+    print()
+    print("\n//--- Parameters for the submatrix Cf ---")
+    print("alpha_0_cf \t{:0.12e}".format(alpha_0))
+    print("alpha_1_cf \t{:0.12e}".format(alpha_1))
+
+
+    # --- Submatrix CE ---
+    alpha_0 = - 1.0
+    alpha_1 = np.abs(alpha_0) * coef_ratio
+    print("\n//--- Parameters for the oracle for the submatrix CE ---")
+    print("alpha_0_CE \t{:0.12e}".format(alpha_0))
+    print("alpha_1_CE \t{:0.12e}".format(alpha_1))
+    del alpha_0, alpha_1
+   
+    # --- Submatrix S ---
+    angle_sb = - 2 * np.arcsin(np.imag(v_bulk_S))
+    angle_se = - 2 * np.arcsin(np.imag(v_edge_S)) - angle_sb
+
+    print("\n//--- Parameters for the submatrix S ---")
+    print("angle_sb \t{:0.12f}".format(angle_sb))
+    print("angle_se \t{:0.12f}".format(angle_se))
+
+    # --- Submatrix F: profiles ---
+    shift_x = Nx//2 * Nv
+
+    # # right blocks FB1:
+    # v1 = oo_ase.BF_prof_.get_matrix_element(
+    #     shift_x, Nv + shift_x
+    # )
+    # alpha_0_RFB1 = -np.abs(v1)
+    # alpha_1_RFB1 = np.abs(v1) * coef_ratio
+
+    # left blocks FB1,
+    v1 = oo_ase.BF_prof_.get_matrix_element(
+        shift_x, shift_x - Nv
+    )
+    alpha_0_LFB1 = - np.abs(v1)
+    alpha_1_LFB1 = np.abs(v1) * coef_ratio
+
+    # # block FL1:
+    # # use minus for the block FR1:
+    # v1 = oo_ase.BF_prof_.get_matrix_element(0, Nv)
+    # alpha_0_FL1 = - np.abs(v1)
+    # alpha_1_FL1 = np.abs(v1) * coef_ratio
+
+    # block FL2:
+    v1 = oo_ase.BF_prof_.get_matrix_element(0, 2*Nv)
+    alpha_0_FL2 = - np.abs(v1)
+    alpha_1_FL2 = np.abs(v1) * coef_ratio
+
+    # block FR2:
+    v1 = oo_ase.BF_prof_.get_matrix_element(N-1, N-2*Nv-1)
+    alpha_0_FR2 = - np.abs(v1)
+    alpha_1_FR2 = np.abs(v1) * coef_ratio
+
+    print("\n//--- Parameters for the submatrix F-prof ---")
+    # print("alpha_0_RFB1 \t{:0.12f}".format(alpha_0_RFB1))
+    # print("alpha_1_RFB1 \t{:0.12f}".format(alpha_1_RFB1))
+    print("alpha_0_LFB1 \t{:0.12f}".format(alpha_0_LFB1))
+    print("alpha_1_LFB1 \t{:0.12f}".format(alpha_1_LFB1))
+    # print("alpha_0_FL1 \t{:0.12f}".format(alpha_0_FL1))
+    # print("alpha_1_FL1 \t{:0.12f}".format(alpha_1_FL1))
+    print("alpha_0_FL2 \t{:0.12f}".format(alpha_0_FL2))
+    print("alpha_1_FL2 \t{:0.12f}".format(alpha_1_FL2))
+    print("alpha_0_FR2 \t{:0.12f}".format(alpha_0_FR2))
+    print("alpha_1_FR2 \t{:0.12f}".format(alpha_1_FR2))
+    print("pi2 \t{:0.12f}".format(2.*np.pi))
+    return
+
+
+
+
+# recheck the QuCF simulation of the submatrices:
+def recheck_QuCF_submatrices(oo_ase):
+    dd       = qucf_r.read_matrix_sparse(oo_ase.path_, oo_ase.output_qucf_) 
+
+    print("\n--- Cf: QuCF version vs original version ---")
+    Cf_recon = dd["A"].get_slice(oo_ase.Nvar_work_, 0, oo_ase.Nvar_work_,)
+    compare_reconstructed(Cf_recon, oo_ase.Cf_orig_)
+
+    print("\n--- S: QuCF version vs original version ---")
+    S_recon = dd["A"].get_slice(oo_ase.Nvar_work_, oo_ase.Nvar_work_, oo_ase.Nvar_work_)
+    compare_reconstructed(S_recon, oo_ase.S_orig_)
+    return
+
+
+
+
+# --------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------
 def init_circuit_kin(dd_q):
     circ = qucf_o.Circuit__()
     anc = qucf_o.Regs__()
@@ -30,6 +289,21 @@ def init_circuit_kin(dd_q):
     circ.set_regs(inp, anc)
     circ.compute_N_registers()
     return circ
+
+
+# --- Returnes only the part of the matrix D related to the submatrix F ---
+def init_matrix_and_circuit(dd):
+    circ = init_circuit_kin(dd)
+
+    N_input_regs = len(circ.input_regs_.names_)
+    N = 1
+    size_D = [None] * N_input_regs
+    for i_reg in range(N_input_regs): # from the most to the least significant qubit;
+        N1 = 1 << circ.input_regs_.nqs_[i_reg]
+        N *= N1
+        size_D[i_reg] = N1 
+    D_F = dd["A"].get_slice(0,0,N)
+    return [circ, D_F, size_D]
 
 
 def init_circuit_of_defined_size(nx, nv, nx_rel = 3, nv_rel = 3):
@@ -48,20 +322,6 @@ def init_circuit_of_defined_size(nx, nv, nx_rel = 3, nv_rel = 3):
     return circ
 
 
-def init_matrix_and_circuit(dd):
-    circ = init_circuit_kin(dd)
-
-    N_input_regs = len(circ.input_regs_.names_)
-    N = 1
-    size_D = [None] * N_input_regs
-    for i_reg in range(N_input_regs): # from the most to the least significant qubit;
-        N1 = 1 << circ.input_regs_.nqs_[i_reg]
-        N *= N1
-        size_D[i_reg] = N1 
-    D_F = dd["A"].get_slice(0,0,N)
-    return [circ, D_F, size_D]
-
-
 def normalize_matrix_A(A, D_F, nv):
     # --- original matrix ---
     print("original matrix >>>")
@@ -69,7 +329,7 @@ def normalize_matrix_A(A, D_F, nv):
 
     A_norm = A.copy()
 
-    A_values = A.get_values()
+    # A_values = A.get_values()
     D_values = D_F.get_values()
 
     # --- normalization ---
@@ -79,7 +339,15 @@ def normalize_matrix_A(A, D_F, nv):
     coef_norm_D_2 = np.min(np.min(np.abs(D_values[np.nonzero(D_values)])))
     coef_norm_D = np.min([coef_norm_D_1, coef_norm_D_2])
 
-    coef_norm_A = np.max(np.sqrt(np.sum(np.abs(A_values)**2)))
+    # coef_norm_A = np.max(np.sqrt(np.sum(np.abs(A_values)**2)))
+    # print("norm 1: ", np.max(np.sqrt(np.sum(np.abs(A_values)**2))))
+
+    coef_norm_A = 0
+    for ir in range(A.get_N()):
+        temp = np.sqrt(np.sum(np.abs(A.get_values_in_a_row(ir))**2))
+        if temp > coef_norm_A:
+            coef_norm_A = temp
+    print("norm of the matrix: ", coef_norm_A)
 
     values_norm = A_norm.get_values()
     values_norm *= coef_norm_D 
@@ -90,6 +358,7 @@ def normalize_matrix_A(A, D_F, nv):
     print("normalized matrix >>>")
     A_norm.print_max_min()
     return A_norm
+
 
 # > A_F is a normalized F submatrix (first normalized to A-max and nonsparsity).
 # > D_F is a part of the matrix D related to the F submatrix. 
@@ -124,8 +393,8 @@ def extract_fixed_profile_matrix_from_F(nx, nv, A_F, D_F):
         return mix.SparseMatrix(N, Nnz, rows, columns, values)
 
 
-    # -------------------------------------------------------------------
-    # --- second normalization ---
+    # ----------------------------------------------------------------------------------------------
+    # --- rescaling of the matrix elements taking into account the influence of the oracle OF, OM ---
     B = A_F.copy()
     B_values = B.get_values()
     for ii in range(B.get_Nnz()):
@@ -192,7 +461,7 @@ def extract_fixed_profile_matrix_from_F(nx, nv, A_F, D_F):
 
     # *** Extract profile elements ***
     
-    # --- diag points at the left and right boundaries ---
+    # --- diag points at the left and right spatial boundaries ---
     for ir in range(Nv//2):
         B_prel_profile[2, ir] = B.get_matrix_element(ir, ir)
         Nnz_profile += 1
@@ -201,7 +470,7 @@ def extract_fixed_profile_matrix_from_F(nx, nv, A_F, D_F):
         B_prel_profile[2, ir] = B.get_matrix_element(ir, ir)
         Nnz_profile += 1
 
-    # --- off-diag points at the left and right boundaries ---
+    # --- off-diag points at the left and right spatial boundaries ---
     for ir in range(Nv//2):
         B_prel_profile[3, ir] = B.get_matrix_element(ir, ir + Nv)
         B_prel_profile[4, ir] = B.get_matrix_element(ir, ir + 2*Nv)
@@ -212,7 +481,7 @@ def extract_fixed_profile_matrix_from_F(nx, nv, A_F, D_F):
         B_prel_profile[0, ir] = B.get_matrix_element(ir, ir - 2*Nv)
         Nnz_profile += 2
 
-    # --- off-diag bulk points ---
+    # --- off-diag spatial bulk points ---
     for ir in range(Nv, Nv*(Nx-1)):
         B_prel_profile[1, ir] = B.get_matrix_element(ir, ir - Nv)
         B_prel_profile[3, ir] = B.get_matrix_element(ir, ir + Nv)
@@ -225,10 +494,6 @@ def extract_fixed_profile_matrix_from_F(nx, nv, A_F, D_F):
     B_sparse_fixed   = map_prel_to_sparse(Nnz_fixed,   B_prel_fixed,   1)
     B_sparse_profile = map_prel_to_sparse(Nnz_profile, B_prel_profile, Nv)
 
-
-
-
-
     return B_sparse_fixed, B_sparse_profile
 
 
@@ -240,10 +505,12 @@ def get_B_C_matrix(nv, C):
     return B_C
 
 
-def get_B_S_matrix(S):
+def get_B_S_matrix(nx, nv, S):
+    Nx, Nv = 1<<nx, 1<<nv
     B_S = S.copy()
     B_values = B_S.get_values()
-    B_values[0] /= 0.50
+    for ix in range(Nx):
+        B_values[ix*Nv] /= 0.50
     return B_S
 
 
@@ -347,17 +614,17 @@ def plot_colored_A_structure(
     plt.gca().invert_yaxis()
     plt.xlabel('columns', fontsize = fontsize)
     plt.ylabel("rows", fontsize = fontsize)
-    ax.tick_params(axis='both', which='major', labelsize=fontsize-5)
+    ax.tick_params(axis='both', which='major', labelsize=fontsize)
 
     # draw submatrices' boundaries:
     ax.axvline(x = Ns-0.5, color = 'black', linewidth = 0.5, linestyle = "-")
     ax.axhline(y = Ns-0.5, color = 'black', linewidth = 0.5, linestyle = "-")
 
     # text submatrices' names:
-    ax.text(46,  14, r'$\textbf{F}$', fontsize=fontsize)
-    ax.text(116, 14, r'$\textbf{C}^E$', fontsize=fontsize)
-    ax.text(46, 77, r'$\textbf{C}^f$', fontsize=fontsize)
-    ax.text(116, 77, r'$\textbf{S}$', fontsize=fontsize)
+    # ax.text(49,  14, r'$\textbf{F}$', fontsize=fontsize)
+    # ax.text(121, 14, r'$\textbf{C}^E$', fontsize=fontsize)
+    # ax.text(49, 77, r'$\textbf{C}^f$', fontsize=fontsize)
+    # ax.text(121, 77, r'$\textbf{S}$', fontsize=fontsize)
 
     # draw blocks' boundaries:
     for ii in range(1, Nx):
@@ -393,7 +660,7 @@ def plot_colored_A_structure(
 
     if flag_save:
         if path_save is None:
-            print("Error: a path for saveing a figure is not given.")
+            print("Error: a path for saving a figure is not given.")
             return
         plt.savefig(path_save + "/" + "A-colored-structure-nx{:d}-nv{:d}.png".format(nx, nv))
     
@@ -473,35 +740,38 @@ def plot_colored_F_structure(
 
 
 
-def compare_reconstructed(Ar, Ao, prec = 1e-8):
+# def compare_reconstructed(Ar, Ao, prec = 1e-8):
+def compare_reconstructed(Ar, Ao):
     Nr = len(Ar.get_values())
     No = len(Ao.get_values())
 
-    print()
     if Nr == No:
-        print("The same size.")
-        print("N_nz = {:d}".format(Nr))
+        print("The same size of the matrices.")
+        print("N of nonzero elements = {:d}".format(Nr))
     else:
         print("Different sizes.") 
         
-    print()
-    flag_same = True
+    # flag_same = True
+    max_abs_err = 0.0
     for ii in range(Nr):
-        if not mix.compare_complex_values(
-            Ar.get_values()[ii], 
-            Ao.get_values()[ii], 
-            1e-8
-        ):
-            print(
-                np.abs(Ar.get_values()[ii] - Ao.get_values()[ii])
-            )
-            flag_same = False
-            break
+        abs_err = np.abs(Ar.get_values()[ii] - Ao.get_values()[ii])
+        if abs_err > max_abs_err:
+            max_abs_err = abs_err
+
+        # if not mix.compare_complex_values(
+        #     Ar.get_values()[ii], 
+        #     Ao.get_values()[ii], 
+        #     prec
+        # ):
+        #     flag_same = False
+    del abs_err
+
+    print("Max. abs. error: {:0.3e}".format(max_abs_err))    
             
-    if flag_same:
-        print("The values are the same within the precision {:0.1e}.".format(prec))
-    else:
-        print("The absolute difference between values is larger than {:0.1e}.".format(prec))
+    # if flag_same:
+    #     print("The values are the same within the precision {:0.1e}.".format(prec))
+    # else:
+    #     print("The absolute difference between values is larger than {:0.1e}.".format(prec))
     return 
 
 

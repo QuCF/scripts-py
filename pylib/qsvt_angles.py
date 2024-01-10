@@ -60,3 +60,37 @@ def save_coef_mat(path_coef, file_name, data):
     savemat(full_name, mdic)
     print("file name: ", full_name)
     return
+
+
+def read_angles(path_coef, filename):
+    full_filename = path_coef + "/" + filename
+
+    dd = {}
+    print("Reading angles from the file \n{:s}".format(full_filename))
+    with h5py.File(full_filename, "r") as f:
+        gr = f["basic"]
+        dd["date-of-simulation"] = gr["date-of-simulation"][()].decode("utf-8")
+        
+        dd["function-type"]       = gr["function-type"][()].decode("utf-8")
+        dd["function-parity"]     = gr["function-parity"][()]
+        dd["function-parameter"]  = gr["function-parameter"][()]
+        dd["abs-error"]           = gr["abs-error"][()]
+        dd["factor-norm"]         = gr["factor-norm"][()]
+        
+        gr = f["results"]
+        dd["x"] = np.array(gr["x"]) # Chebyschev roots (nodes);
+        dd["pol-coefs"] = np.array(gr["pol-coefs"]) # the polynomial constructed using coefficients;
+        dd["pol-angles"] = np.array(gr["pol-angles"]) # the polynomial constructed using computed angles;
+        dd["phis"] = np.array(gr["phis"])
+
+    # print some basic results:
+    print("when simulated: ", dd["date-of-simulation"])
+    print()
+    print("function-type: \t\t{:s}".format(dd["function-type"]))
+    print("function-parity: \t\t{:d}".format(dd["function-parity"]))
+    print("param: \t\t\t{:f}".format(dd["function-parameter"]))
+    print("absolute error: \t{:0.3e}".format(dd["abs-error"]))
+    print("norm. factor: \t\t{:0.3e}".format(dd["factor-norm"]))
+    print("Number of angles: \t{:d}".format(len(dd["phis"])))
+
+    return dd

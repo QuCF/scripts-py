@@ -921,7 +921,7 @@ class SystemGates__:
     # -> To split groups once again, launch the function again.
     # -> The function investigates the first self.n_split_ qubits
     #   (starting from the most significant qubit).
-    #   If a qubit does not keep constant its bit whithin the group, then the group is split into two groups
+    #   If a qubit does not keep its bit constant within the group, then the group is split into two groups
     #   such that this qubit keeps constant its bit in each of these new groups.
     def split_groups(self):
         if self.n_split_ > self.circ_.input_regs_.nq_:
@@ -1229,6 +1229,8 @@ class SystemGates__:
 
 # B_fixed = A/D;
 # grid_sections[i-section][ir] = value-of-matrix-element
+# Sections are equivalent to diagonals or columns 
+#   (depending on the meaning of ancilla registers, absolute or relative)
 def create_grid_of_sections(circ, B_fixed): 
     grid_sections = circ.init_grid_of_sections()
     N, _, B_rows, B_columns, B_values = B_fixed.get_data()
