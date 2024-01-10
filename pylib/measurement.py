@@ -116,8 +116,8 @@ class MeasOracle__:
 
             self.dd_["date-of-sim"]  = bg["date-of-simulation"][()].decode("utf-8")
             self.dd_["project-name"] = bg["project-name"][()].decode("utf-8")
-            self.dd_["launch-path"] = bg["launch-path"][()].decode("utf-8")
-            self.dd_["path-inputs"] = bg["path-inputs"][()].decode("utf-8")
+            self.dd_["launch-path"]  = bg["launch-path"][()].decode("utf-8")
+            self.dd_["path-inputs"]  = bg["path-inputs"][()].decode("utf-8")
 
             self.dd_["nq"] = bg["nq"][()]
             self.dd_["na"] = bg["na"][()]
@@ -187,6 +187,13 @@ class MeasOracle__:
         self.work_states_ = self.output_all_states_[id_input_state]["state"]
         self.work_ampls_  = self.output_all_states_[id_input_state]["ampls"]
         return
+    
+
+    # The chosen initial state becomes the work state
+    def set_init_work_states(self, id_input_state = 0):
+        self.work_states_ = self.init_states_[id_input_state]["state"]
+        self.work_ampls_  = self.init_states_[id_input_state]["ampls"]
+        return  
 
 
     def print_full_states(self):

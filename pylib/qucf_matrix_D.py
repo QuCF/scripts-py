@@ -18,8 +18,10 @@ def reload():
 
 
 
+
+
 # ********************************************************************************************
-# * SET
+# * SET: parent class
 # ********************************************************************************************
 class Set__:
     rb_ = None
@@ -53,6 +55,7 @@ class ElementSet__(Set__):
         self._flag_block_set_ = False
         return
     
+    # compare the set with a set from another layer
     def is_the_same_as_another_grid(self, another_set):
         if not mix.compare_complex_values(self.v_, another_set.v_):
             print("Warning: element-sets have different values: {:10.12e} vs {:10.12e}".format(
@@ -183,7 +186,7 @@ class Block__:
 
     def create_blocks(self, block_elements, sizes_bs):
         Ne = len(block_elements)
-        subblock_size = Ne//self.Nb_
+        subblock_size = Ne//self.Nb_ # number of elements in each inner block of this block;
         self.blocks_ = [None] * self.Nb_
     
         i_begin = 0
@@ -205,7 +208,7 @@ class Block__:
         # block-sets have unique identifiers starting from 0: 0, 1, 2, ...
         # this identifier can be used only to compare sub-blocks within a single block, but
         # it cannot be used to compare a sub-block of one block to a sub-block of another block;
-        # it can also be used to compare a block with its counterpart from another grid:
+        # it can also be used to compare a block with its counterpart from another grid (matrix):
         id_block = -1  
         while irb < self.Nb_:
             id_block += 1
@@ -270,17 +273,18 @@ class Block__:
         return False # the blocks are the same;
     
 
-    # another_block is a block from another grid:
+    # another_block is a block from another grid (another matrix):
     def is_the_same_as_another_grid(self, another_block):
         N_sets = len(self.sets_)
         if N_sets != len(another_block.sets_):
             return False # different number of sets;
         if self.flag_smallest_ != another_block.flag_smallest_:
-            return False # different nesting of blocks;
+            return False # the compared blocks are at different layers. i.e. 
+                # the compared matrices have different complexity (nesting);
         
         for i_set in range(N_sets):
             if not self.sets_[i_set].is_the_same_as_another_grid(another_block.sets_[i_set]):
-                return False # different inner structure of sets of the block; 
+                return False # different inner structure of sets of the compared block; 
         return True # two blocks have the same structure;
 
 
@@ -290,6 +294,7 @@ class Block__:
 # * Each section consists of nested blocks.
 # * Each smallest block consists of sets.
 # * Each set consists of neighboring elements of the same value.
+# Sections are equiv to Diagonals
 # ********************************************************************************************
 class SectionsGrid__:
     circ_ = None
@@ -303,20 +308,22 @@ class SectionsGrid__:
     # If len(sizes_bs_) == 3, then sizes_bs_[0] is the number of blocks in the matrix, and
     #   sizes_bs_[1] is the number of sub-blocks in each block, and
     #   sizes_bs_[2] is the number of elements in each sub-block. 
-    # etc.
+    # and so on.
     sizes_bs_ = None  
 
     # data = [circ, A, sizes_bs]
     def __init__(self, data):
         self.circ_     = data[0]
         self.sizes_bs_ = data[2]
+
+        # get matrix elements in each section (diagonal):
         grid_sections  = qucf_o.create_grid_of_sections(self.circ_, data[1])
 
         self.sections_     = []
         self.ids_sections_ = []
 
         # note that circ.N_sections_ and size of the results list sections_ are different:
-        for i_section in range(self.circ_ .N_sections_):
+        for i_section in range(self.circ_.N_sections_):
             section_elements = grid_sections[i_section]
             if all(np.isnan(section_elements)): # empty section
                 continue
@@ -329,15 +336,16 @@ class SectionsGrid__:
     def get_N_sections(self):
         return len(self.sections_)
 
-
+    # THe current grid represent a matrix of a certain size.
+    # another_grid is the same matrix of another size.
     def is_the_same_as_another_grid(self, another_grid):
         N_sections = len(self.sections_)
         if N_sections != len(another_grid.sections_):
-            return False # different number of sections;
+            return False # different number of sections (diagonals);
         
         for i_section in range(N_sections):
             if self.ids_sections_[i_section] != another_grid.ids_sections_[i_section]:
-                return False # different positions of sections;
+                return False # different positions of sections (diagonals);
         
         for i_section in range(N_sections):
             if not self.sections_[i_section].is_the_same_as_another_grid(
@@ -644,7 +652,8 @@ class Extrapolation__:
             return
         return
     
-
+    # Compare grids of sections (diagonals) that 
+    # represent the same matrix of different sizes:
     def compare_grids(self):
         N_grids = len(self.grids_)
         ref_grid = self.grids_[0]
