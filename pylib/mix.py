@@ -91,6 +91,7 @@ def get_hermitian_matrix(Ndim):
     H = A_starting + A_starting.H
     return H
 
+
 def hermitian_to_pauli(H, flag_filter = True, small_coef = 1e-14, flag_print_details=False):
     # INPUT:
     # -> H - Hermitian matrix of size N = 2**nq
@@ -164,6 +165,82 @@ def hermitian_to_pauli(H, flag_filter = True, small_coef = 1e-14, flag_print_det
         print("---------------------------------------------------------------")
 
     return H_decom
+
+
+def hermitian_to_Z_pauli(H, flag_filter = True, small_coef = 1e-14, flag_print_details=True):
+    # INPUT:
+    # -> H - Hermitian matrix of size N = 2**nq
+    # -> flag_filter - if True, exclude Pauli products with 
+    #                   coefficients smaller than small_coef
+    # -> flag_print_details to print soma intermediate details of the decomposition 
+
+    # Output:
+    # H_decom =[(...), (...), ] - all Pauli products of the decomposition
+    #   (...) = (coef, prod, pauli_inds), where
+    #   coef - real coefficient in front of Pauli product prod, where
+    #   position of Pauli matrices in the product is described by pauli_inds
+    #   0 - I, 1 - X, 2 - Y, 3 - Z
+
+    import itertools as it
+    import functools as ftool
+
+    if flag_print_details:
+        print("---------------------------------------------------------------")
+        print("--- Decomposition of a Hermitian into Pauli tensor products ---")
+
+    sigma = list(G_Sigma)
+
+    # -- find size of the Hermitian matrix --
+    N = H.shape[0]
+    nq = np.int(np.floor(np.log2(N)))
+    if N != 2**nq:
+        print("Error: size of the Hermitian has to be equal to 2**nq for some nq.")
+        sys.exit(-1)
+
+    # -- create all possible combinations of Pauli matrices for nq-qubits --
+    comb_nq = list(it.product([0,3], repeat=nq))
+
+    # print details:
+    if flag_print_details:
+        print("nq: ", nq)
+        print('Total number of possible combinations of (I,Z) Pauli matrices', len(comb_nq))
+
+    # -- Hermitian decomposition into products of Pauli matrices --
+    H_decom = []  
+    count_step = 0
+    for J_prod in comb_nq:  # for every combination of Pauli matrices
+        count_step = count_step + 1
+        
+        # tensor product of the current combination of Pauli matrices
+        ch_pauli = [sigma[i1] for i1 in J_prod]
+        prod_pauli = ftool.reduce(np.kron, ch_pauli)
+
+        # coefficient in front of the tensor product:
+        coef_alpha = np.trace(prod_pauli @ H) / (1.* N)
+
+        # for Hermitian, the coefficients have to be real in any case:
+        coef_alpha = np.real(coef_alpha)
+
+        # save the Pauli product
+        if flag_filter:
+            if np.abs(coef_alpha) > small_coef:
+                H_decom.append((coef_alpha, prod_pauli, J_prod))
+        else:
+            H_decom.append((coef_alpha, prod_pauli, J_prod))
+        
+        if np.mod(count_step, 1000) == 0:
+            print('step: {:d}'.format(count_step))
+
+    # number of Pauli products in the resulting decomposition:
+    if flag_print_details:
+        n_prods = len(H_decom)
+        print("n. of Pauli products: ", n_prods)
+
+    if flag_print_details:
+        print("---------------------------------------------------------------")
+    return H_decom
+
+
 
 def reconstruct_hermitian_from_pauli(H_decom):
     # find matrix size:
