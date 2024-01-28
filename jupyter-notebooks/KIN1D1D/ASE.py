@@ -24,19 +24,17 @@ def reload():
 # --------------------------------------------------------------------------------------------
 class ASE_:
     # path to the final results from QuCF simulations: 
-    path_ = "../simulations/KIN1D1D/"
+    path_qc_ = "../QuCF/simulations/EVM/"
 
     # path to the QuCF simulations performed without the oracle OH:
-    path_D_ = "../simulations/KIN1D1D/matrices-D/"
+    path_D_ = "../QuCF/simulations/EVM/matrices-D/"
+    path_cl_ = "../QuCF/simulations/EVM/classical-sims/"
 
     file_name_oracle_ = "circuit_OH"
-    path_test_ = "../simulations/test-simplified/"
-    path_cl_ = "../results/KIN1D1D-results/"
     path_save_ = "../results/KIN1D1D-results/figs/"
-    file_name_oracle_ = "circuit_OH"
 
     # output file with final QuCF simualtions of the ASE:
-    output_qucf_ = "flat_OUTPUT.hdf5"
+    output_qucf_ = "BE_OUTPUT.hdf5"
 
     cl_ = None
 
@@ -57,6 +55,9 @@ class ASE_:
     # classical data for the chosen nx_work_ and nv_work_:
     cl_work_ = None 
 
+    # parameters of the quantum circuit:
+    circ_ = None
+
     # The submatrix of the matrix D (D is of size 2 * Nvar_work_) related to the submatrix F.
     # The submatrix DF_work_ is of size Nvar_work_.
     DF_work_ = None
@@ -73,13 +74,13 @@ class ASE_:
         # Matrix D is a matrix representation of a part of a block encoding oracle 
         #   which does not include the suboracle OH.
         print()
-        self.dd_33_ = qucf_r.read_matrix_sparse(self.path_D_, "flat_33_OUTPUT.hdf5") #  nv = 4, nx = 4
+        self.dd_33_ = qucf_r.read_matrix_sparse(self.path_D_, "flat_33_OUTPUT.hdf5") #  nx = 4, nv = 4
 
         print()
-        self.dd_44_ = qucf_r.read_matrix_sparse(self.path_D_, "flat_44_OUTPUT.hdf5") #  nv = 4, nx = 4 
+        self.dd_44_ = qucf_r.read_matrix_sparse(self.path_D_, "flat_44_OUTPUT.hdf5") #  nx = 4, nv = 4 
 
         print()
-        self.dd_45_ = qucf_r.read_matrix_sparse(self.path_D_, "flat_45_OUTPUT.hdf5") #  nv = 4, nx = 5 
+        self.dd_45_ = qucf_r.read_matrix_sparse(self.path_D_, "flat_45_OUTPUT.hdf5") #  nx = 4, nv = 5 
 
         print()
         self.dd_54_ = qucf_r.read_matrix_sparse(self.path_D_, "flat_54_OUTPUT.hdf5") #  nx = 5, nv = 4
@@ -92,7 +93,7 @@ class ASE_:
     def read_plasma_matrices(self):
         self.cl_ = {}
         print()
-        self.cl_["33"] = read_matrix_sparse(self.path_cl_, "w12/out_3_3_w1.2_Lx100_Lv4_flat.hdf5")
+        self.cl_["33"] = read_matrix_sparse(self.path_cl_, "out_3_3_w1.2_Lx100_Lv4_flat.hdf5")
         for ii in range(4, 9):
             for kk in range(4, 9):
                 self.cl_["{:d}{:d}".format(ii, kk)] = read_matrix_sparse(
@@ -112,6 +113,18 @@ class ASE_:
         return
     
 
+    # Return the D matrix calculated by the quantum circuit.
+    def get_original_D_matrix(self):
+        D_orig = None
+        if self.nx_work_ == 4 and self.nv_work_ == 4:
+            D_orig = self.dd_44_["A"].get_slice(0, 0, self.Nvar_work_)
+        if self.nx_work_ == 4 and self.nv_work_ == 5:
+            D_orig = self.dd_45_["A"].get_slice(0, 0, self.Nvar_work_)
+        if self.nx_work_ == 5 and self.nv_work_ == 4:
+            D_orig = self.dd_54_["A"].get_slice(0, 0, self.Nvar_work_)
+        return D_orig
+    
+
     def choose_a_case(self, nx, nv):
         self.nx_work_, self.nv_work_ = int(nx), int(nv)
         self.cl_work_ = self.cl_["{:d}{:d}".format(nx, nv)]
@@ -125,8 +138,8 @@ class ASE_:
         if self.nx_work_ == 3 and self.nv_work_ == 3:
             self.DF_work_ = self.dd_33_["A"]
         else:
-            oo_circ = init_circuit_of_defined_size(self.nx_work_, self.nv_work_, 3, 3)
-            self.DF_work_ = self.oo_extr_.reconstruct_matrix(oo_circ)
+            self.circ_ = init_circuit_of_defined_size(self.nx_work_, self.nv_work_, 3, 3)
+            self.DF_work_ = self.oo_extr_.reconstruct_matrix(self.circ_)
 
         # first normalization: normalize the plasma matrix to nonsparsity and the matrix norm:
         A_norm = normalize_matrix_A(self.cl_work_["A"], self.DF_work_, self.nv_work_)
@@ -259,7 +272,7 @@ def preliminary_parameters_for_submatrices(oo_ase):
 
 # recheck the QuCF simulation of the submatrices:
 def recheck_QuCF_submatrices(oo_ase):
-    dd       = qucf_r.read_matrix_sparse(oo_ase.path_, oo_ase.output_qucf_) 
+    dd       = qucf_r.read_matrix_sparse(oo_ase.path_qc_, oo_ase.output_qucf_) 
 
     print("\n--- Cf: QuCF version vs original version ---")
     Cf_recon = dd["A"].get_slice(oo_ase.Nvar_work_, 0, oo_ase.Nvar_work_,)
