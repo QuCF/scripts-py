@@ -23,17 +23,8 @@ def reload():
     return
 
 
-
-
-
-
 def is_Hermitian(A, name):
-    inds_nonzero = np.nonzero(np.transpose(np.conjugate(A)) - A)
-    if np.size(inds_nonzero) == 0:
-        print("the matrix {:s} is Hermitian".format(name))
-    else:
-        print("the matrix {:s} is non-Hermitian".format(name))
-    return
+    return mix.is_Hermitian(A, name)
 
 
 def h_adj(AA):
@@ -41,16 +32,14 @@ def h_adj(AA):
     
 
 def get_herm_aherm_parts(B):
-    Bh = (B + h_adj(B)) / 2.
-    Ba = (B - h_adj(B)) / (2.j)
-    # B_ch = Bh + 1j * Ba
-    return Bh, Ba 
+    return mix.get_herm_aherm_parts(B)
 
 
 def plot_A_structure(
-        A, name_A, label_A, 
-        file_save, flag_save = False, path_save = None, 
-        fontsize = 24, cmap='bwr', marker_size = 160,
+        A, 
+        name_A = "", label_A = "", 
+        file_save = "", flag_save = False, path_save = None, 
+        fontsize = 24, marker_size = 160,
         text_coord_label = [1, 14],
         text_coord_name_A = [12, 1],
 ):
@@ -105,12 +94,7 @@ def plot_A_structure(
 
 # ---------------------------------------------------------------------------
 def is_Hermitian(A, name):
-    inds_nonzero = np.nonzero(np.transpose(np.conjugate(A)) - A)
-    if np.size(inds_nonzero) == 0:
-        print("the matrix {:s} is Hermitian".format(name))
-    else:
-        print("the matrix {:s} is non-Hermitian".format(name))
-    return
+    return mix.is_Hermitian(A, name)
 
 
 # ---------------------------------------------------------------------------
@@ -170,6 +154,7 @@ def construct_UW_matrix_1D(x, F):
     return H_UW
 
 
+# ---------------------------------------------------------------------------
 def solve_KvN_1D_using_Hamiltonian(t, Nx, psi_init, A):
     Nt = len(t)
     dt = np.diff(t)[0]
@@ -186,6 +171,7 @@ def solve_KvN_1D_using_Hamiltonian(t, Nx, psi_init, A):
     return psi_tx
 
 
+# ---------------------------------------------------------------------------
 def compute_mean_1D(x, Nt, psi_tx_matrix):
     # x_operator = np.diag(x)
     dx = np.diff(x)[0]
@@ -295,65 +281,16 @@ def analyse_exp_matrices(exp_1, exp_2):
     print("- log of max. abs. error: {:0.3f}".format(-np.log10(abs_err_max)))
 
 
-# ------------------------------------------------------------------------------------------------
-def find_nonsparsity(A):
-    # Assume that A is a square matrix.
-    coef_zero = 1e-12
-    N = A.shape[0]
-    final_nonsparsity = 0
-    for ir in range(N):
-        nonsparsity_row = 0
-        for ic in range(N):
-            if np.abs(A[ir, ic]) > coef_zero:
-                nonsparsity_row += 1
-        if nonsparsity_row > final_nonsparsity:
-            final_nonsparsity = nonsparsity_row
-    return final_nonsparsity
-
-
-# ------------------------------------------------------------------------------------------------
-def find_norm_of_matrix(A):
-    N = A.shape[0]
-    rows_sum = np.zeros(N)
-    for ir in range(N):
-        rows_sum[ir] = np.sqrt(np.sum(np.abs(A[ir,:])**2))
-    coef_norm = np.max(rows_sum)
-    return coef_norm
 
 
 # ------------------------------------------------------------------------------------------------
 def compute_normalized_matrix(A, name_A):
-    nonsparsity = find_nonsparsity(A)
-    if nonsparsity == 0:
-        return A, 1.0, 0.0
-    final_norm = nonsparsity
-    
-    coef_norm_A = find_norm_of_matrix(A)
-    if coef_norm_A > 1:
-        final_norm *= coef_norm_A
-        
-    A_norm = A / final_norm
-    
-    print()
-    print(">>> Matrix {:s}".format(name_A))
-    print("nonsparsity, coefnorm: {:d}, {:0.3e}".format(nonsparsity, final_norm))
-    return A_norm, final_norm, nonsparsity
+    return mix.compute_normalized_matrix(A, name_A)
 
 
 # ------------------------------------------------------------------------------------------------
 def get_diag(A, i_shift):
-    N = A.shape[0]
-    diag = np.zeros(N-np.abs(i_shift), dtype=A.dtype)
-    if i_shift >= 0:
-        chosen_range = range(N-i_shift)
-        for ir in range(N-i_shift):
-            diag[ir] = A[ir, ir + i_shift]
-    else:
-        chosen_range = range(-i_shift, N)
-        for ir in chosen_range:
-            diag[ir + i_shift] = A[ir, ir + i_shift]
-    row_range = np.array(chosen_range)
-    return diag, row_range
+    return mix.get_diag(A, i_shift)
 
 
 
