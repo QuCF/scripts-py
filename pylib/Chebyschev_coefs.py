@@ -257,6 +257,7 @@ class Ch_:
         self.x_ = np.zeros(self.Nx_)
         for ii in range(self.Nx_):
             self.x_[ii] = np.cos((2*ii + 1)*np.pi / (2.*self.Nx_))
+        self.x_ = np.flip(self.x_)
 
         # - Evaluate the chosen function -
         if self.id_fun_ >= 0:
@@ -283,6 +284,9 @@ class Ch_:
             print()
         else:
             print("Error: unknown method selector.")
+
+        print("x[0] = ", self.x_[0])
+        print("x[-1] = ", self.x_[-1])
 
         # reconstruct the function:
         self.y_rec_ = self.rec_func_(self.x_, self.coefs_)
@@ -342,7 +346,21 @@ class Ch_:
         plt.legend()
         plt.grid(True)
         plt.show()
-        return   
+        return 
+
+
+    # --- Plot errors --- 
+    def plot_errors(self):
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        ax.plot(self.x_, self.y_rec_ - self.y_ref_, color="b", linewidth = 2, linestyle='-')
+        plt.xlabel('x')
+        plt.ylabel("yrec - yref")
+        # plt.xlim(-5, 5)
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+        return  
 
 
     # --- Plot the Chebyschev coefficients ---
@@ -375,6 +393,7 @@ class Ch_:
         plt.ylabel("coefs")
         if self.sel_method_ == 2:
             plt.legend()
+        plt.title("Computed Chebyschev coefs.")
         plt.grid(True)
         plt.show()
         return
@@ -389,7 +408,7 @@ class Ch_:
         curr_time = date.today().strftime("%m/%d/%Y") + ": " + datetime.now().strftime("%H:%M:%S")
 
         # --- Create the filename ---
-        fname_ = "{:s}_{:s}_{:d}.hdf5".format(
+        fname_ = "{:s}_{:s}_eps{:d}.hdf5".format(
             self.line_f_, self.line_par_, -int(np.log10(self.max_abs_err_))
         )
         full_fname = self.path_root_ + "/" + fname_
@@ -407,4 +426,11 @@ class Ch_:
 
             grp = f.create_group("coefs")
             grp.create_dataset('real',  data = self.coefs_)  
-        return       
+        return  
+
+
+
+
+    def get_rec_y_sin_x(self): 
+        x = np.linspace(-1.0, 1.0, len(self.x_))
+        return self.rec_func_(np.sin(x), self.coefs_)    

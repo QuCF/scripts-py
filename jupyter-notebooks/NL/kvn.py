@@ -116,42 +116,103 @@ def construct_CD_matrix_1D(x, F):
 
 # ---------------------------------------------------------------------------
 def construct_UW_matrix_1D(x, F):
+    def delta_f(i1, i2):
+        if i1 == i2:
+            return 1
+        else:
+            return 0
+    # ----------------------------------
     Nx = len(x)
     dx = np.diff(x)[0]
     H_UW = np.zeros((Nx, Nx), dtype=complex)
 
-    # --- left ---
-    Fc = F(x[0])
-    if Fc <= 0:
-        Fp = F(x[ii+1])
-        H_UW[0,0] = - 2 * Fc
-        H_UW[0,1] = Fp + Fc
-    else:
-        H_UW[0,0]   = 2 * Fc
-    # --- bulk ---    
-    for ii in range(1,Nx-1):
-        Fc = F(x[ii])
+    for ir in range(Nx):
+        Fr = F(x[ir])
+        ss_r = int(Fr/np.abs(Fr))
+        H_UW[ir, ir] = - 2. * ss_r * Fr
+        ic  = ir - ss_r
+        if ic >= 0 and ic < Nx:
+            Fc = F(x[ic])
+            H_UW[ir, ic] = ss_r * (Fr + Fc)
+    H_UW = 1.j/(2.*dx) * H_UW
 
-        if Fc <= 0:
-            Fp = F(x[ii+1])
-            H_UW[ii,ii]   = - 2 * Fc
-            H_UW[ii,ii+1] = Fp + Fc
-        else:
-            Fm = F(x[ii-1])
-            H_UW[ii,ii]   = 2 * Fc
-            H_UW[ii,ii-1] = - (Fm + Fc)
-    # --- right ---
-    Fc = F(x[Nx-1])
-    if Fc <= 0:
-        H_UW[Nx-1,Nx-1]   = - 2 * Fc
-    else:
-        Fm = F(x[Nx-2])
-        H_UW[Nx-1,Nx-1]   = 2 * Fc
-        H_UW[Nx-1,Nx-2] = - (Fm + Fc)
-    # ---
-    H_UW = -1j/(2.*dx) * H_UW
-    # H_UW[Nx-2, Nx-1] = 0.0
-    return H_UW
+
+    # # --- left ---
+    # Fc = F(x[0])
+    # if Fc <= 0:
+    #     Fp = F(x[ii+1])
+    #     H_UW[0,0] = - 2 * Fc
+    #     H_UW[0,1] = Fp + Fc
+    # else:
+    #     H_UW[0,0]   = 2 * Fc
+    # # --- bulk ---    
+    # for ii in range(1,Nx-1):
+    #     Fc = F(x[ii])
+
+    #     if Fc <= 0:
+    #         Fp = F(x[ii+1])
+    #         H_UW[ii,ii]   = - 2 * Fc
+    #         H_UW[ii,ii+1] = Fp + Fc
+    #     else:
+    #         Fm = F(x[ii-1])
+    #         H_UW[ii,ii]   = 2 * Fc
+    #         H_UW[ii,ii-1] = - (Fm + Fc)
+    # # --- right ---
+    # Fc = F(x[Nx-1])
+    # if Fc <= 0:
+    #     H_UW[Nx-1,Nx-1] = - 2 * Fc
+    # else:
+    #     Fm = F(x[Nx-2])
+    #     H_UW[Nx-1,Nx-1] = 2 * Fc
+    #     H_UW[Nx-1,Nx-2] = - (Fm + Fc)
+    # # ---
+    # H_UW = -1j/(2.*dx) * H_UW
+    # # H_UW[Nx-2, Nx-1] = 0.0
+
+    # ---------------------------------------------------------
+    # --- Compute Hermitian and anti-Hermitian of 1j * H_UW ---
+
+    # *** OPTION 1 ***
+    Ah_v1, Aa_v1 = get_herm_aherm_parts(1j * H_UW)
+
+    # *** OPTION 2 ***
+    Aa_v2 = np.zeros((Nx, Nx), dtype=complex)
+    Ah_v2 = np.zeros((Nx, Nx), dtype=complex)
+    for ir in range(Nx):
+        Fr = F(x[ir])
+        Fr_cc = np.conjugate(Fr)
+        ss_r = int(Fr/np.abs(Fr))
+        Aa_v2[ir, ir] = - 2. * ss_r * (Fr - Fr_cc)
+        Ah_v2[ir, ir] = - 2. * ss_r * (Fr + Fr_cc)
+
+        ic  = ir + 1
+        if ic >= 0 and ic < Nx:
+            Fc = F(x[ic])
+            Fc_cc = np.conjugate(Fc)
+            ss_c = int(Fc/np.abs(Fc))
+
+            temp_1 = delta_f(ss_r,-1) * (Fr + Fc)
+            temp_2 = delta_f(ss_c, 1) * (Fr_cc + Fc_cc)
+
+            Aa_v2[ir, ic] = - (temp_1 + temp_2)
+            Ah_v2[ir, ic] = - temp_1 + temp_2
+
+        ic  = ir - 1
+        if ic >= 0 and ic < Nx:
+            Fc = F(x[ic])
+            Fc_cc = np.conjugate(Fc)
+            ss_c = int(Fc/np.abs(Fc))
+
+            temp_1 = delta_f(ss_r, 1) * (Fr + Fc)
+            temp_2 = delta_f(ss_c,-1) * (Fr_cc + Fc_cc)
+
+            Aa_v2[ir, ic] = temp_1 + temp_2
+            Ah_v2[ir, ic] = temp_1 - temp_2
+
+    Aa_v2 = 1.j/(4.*dx) * Aa_v2
+    Ah_v2 = -1./(4.*dx) * Ah_v2
+
+    return H_UW, Aa_v1, Ah_v1, Aa_v2, Ah_v2
 
 
 # ---------------------------------------------------------------------------
@@ -291,6 +352,23 @@ def compute_normalized_matrix(A, name_A):
 # ------------------------------------------------------------------------------------------------
 def get_diag(A, i_shift):
     return mix.get_diag(A, i_shift)
+
+
+# ------------------------------------------------------------------------------------------------
+def compute_norm_matrices_LCHS(Ah, Aa, kmax, dk):
+    Ba     = Aa
+    B_kmax = - kmax * Ah
+    Bk     =     dk * Ah
+
+    # --- Normalize the matrices ---
+    Ba_norm_,     ncoef_a_,    nonsparsity_a_    = mix.compute_normalized_matrix(Ba,     "Ba")
+    B_kmax_norm_, ncoef_kmax_, nonsparsity_kmax_ = mix.compute_normalized_matrix(B_kmax, "B_kmax")
+    Bk_norm_,     ncoef_k_,    nonsparsity_k_    = mix.compute_normalized_matrix(Bk,     "Bk")
+    print()
+    print("norm of Ba_norm_:     {:0.3f}".format(mix.find_norm_of_matrix(Ba_norm_)))
+    print("norm of B_kmax_norm_: {:0.3f}".format(mix.find_norm_of_matrix(B_kmax_norm_)))
+    print("norm of Bk_norm_:     {:0.3f}".format(mix.find_norm_of_matrix(Bk_norm_)))
+    return Ba_norm_, B_kmax_norm_, Bk_norm_
 
 
 
