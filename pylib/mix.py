@@ -1763,13 +1763,9 @@ def compute_normalized_matrix(A, name_A):
     
     coef_norm_A = find_norm_of_matrix(A)
     if coef_norm_A > 1:
-        final_norm *= coef_norm_A
-        
+        final_norm *= coef_norm_A  
     A_norm = A / final_norm
-    
-    print()
-    print(">>> Matrix {:s}".format(name_A))
-    print("nonsparsity, coefnorm: {:d}, {:0.3e}".format(nonsparsity, final_norm))
+    print("Matrix {:s}:\t nonsparsity, coefnorm: {:d}, {:0.3e}".format(name_A, nonsparsity, final_norm))
     return A_norm, final_norm, nonsparsity
 
 

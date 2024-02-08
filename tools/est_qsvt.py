@@ -139,7 +139,7 @@ def read_ref_QSVT_angles(id_case = 0, Ncoefs = 40):
 
 
 # ----------------------------------------------------------------------------------------
-def plot_angles(dds, ids_plot, xlim = None):
+def plot_angles(dds, ids_plot, xlim = None, flag_save = False, path_save_plots = None):
     colors = ["blue", "red", "green", "gray", "black"]
 
     fig = plt.figure(figsize=(FIG_SIZE_W_,FIG_SIZE_H_))
@@ -166,6 +166,25 @@ def plot_angles(dds, ids_plot, xlim = None):
     ax.legend()
     plt.grid(True)
     plt.show()
+
+    # --- save angles ---
+    if flag_save:
+        N_cases = len(ids_plot)
+        count_plot = -1
+        for id_counter in range(N_cases):
+            id_case = ids_plot[id_counter]
+            phis = dds[id_case]["phis"]
+            Nphis = len(phis) # even integer
+            x_array = np.array(range(Nphis)) - Nphis/2
+            phis_ch = phis - np.pi/2.
+            del phis
+            mix.save_dat_plot_1d_file(
+                path_save_plots + "/phis_k{:d}.dat".format(
+                    int(dds[id_case]['function-parameter'])
+                ), 
+                x_array, 
+                phis_ch
+            )
     return 
 
 
