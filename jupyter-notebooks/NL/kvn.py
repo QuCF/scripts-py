@@ -355,7 +355,7 @@ def get_diag(A, i_shift):
 
 
 # ------------------------------------------------------------------------------------------------
-def compute_norm_matrices_LCHS(Ah, Aa, kmax, dk):
+def compute_norm_matrices_LCHS(Aa, Ah, kmax, dk):
     Ba     = Aa
     B_kmax = - kmax * Ah
     Bk     =     dk * Ah
