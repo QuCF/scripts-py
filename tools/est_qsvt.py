@@ -56,7 +56,7 @@ def read_ref_QSVT_angles(id_case = 0, Ncoefs = 40):
         filenames = \
         [
             "k40_eps13.hdf5",   # id = 0
-            "k60_eps13.hdf5",   # id = 1 
+            # "k60_eps13.hdf5",   # id = 1 
             "k80_eps13.hdf5",   # id = 2 
             "k100_eps13.hdf5",  # id = 3
             "k150_eps13.hdf5",  # id = 4
@@ -86,7 +86,7 @@ def read_ref_QSVT_angles(id_case = 0, Ncoefs = 40):
 
 
     # -------------------------------------------------------------------------
-    if id_case == 3:
+    if id_case == 3:  # !!! MAIN !!!
         # names of the .hdf5 files where pre-computed QSVT angles are saved:
         path_root_ref = "./tools/QSVT-angles/inversion/ref-angles-2"
         filenames = \
@@ -139,19 +139,38 @@ def read_ref_QSVT_angles(id_case = 0, Ncoefs = 40):
 
 
 # ----------------------------------------------------------------------------------------
-def plot_angles(dds, ids_plot, xlim = None, flag_save = False, path_save_plots = None):
+def plot_angles(
+        dds, ids_plot, 
+        xlim = None, 
+        flag_save = False, 
+        path_save_plots = None,
+        flag_shifted = False
+    ):
     colors = ["blue", "red", "green", "gray", "black"]
+
+    str_ylabel = "phis"
+    if flag_shifted:
+        str_ylabel += " - pi/2"
+
+    str_save_start = ""
+    if flag_shifted:
+        str_save_start = "shifted_"
 
     fig = plt.figure(figsize=(FIG_SIZE_W_,FIG_SIZE_H_))
     ax = fig.add_subplot(111)
     count_plot = -1
     for ii in ids_plot: 
         count_plot+= 1
-        Nphis = len(dds[ii]["phis"]) # even integer;
+
+        phis_plot = np.array(dds[ii]["phis"])
+        Nphis = len(phis_plot) 
+        if flag_shifted:
+            phis_plot -= np.pi/2.
+
         x_array = np.array(range(Nphis)) - Nphis/2
         ax.plot(
             x_array, 
-            dds[ii]["phis"] - np.pi/2., 
+            phis_plot, 
             color=colors[count_plot], 
             linewidth = 2, linestyle='-',
             label = "k = {:d}, log_e = {:d}".format(
@@ -159,45 +178,37 @@ def plot_angles(dds, ids_plot, xlim = None, flag_save = False, path_save_plots =
                 -int(np.log10(dds[ii]["abs-error"]))
             )
         )
+
+        # --- Save the plots if necessary ---
+        if flag_save:
+            mix.save_dat_plot_1d_file(
+                path_save_plots + "/{:s}phis_k{:d}.dat".format(
+                    str_save_start,
+                    int(dds[ii]['function-parameter'])
+                ), 
+                x_array, 
+                phis_plot
+            )
     plt.xlabel('i - N/2')
-    plt.ylabel("phis - pi/2")
+    plt.ylabel(str_ylabel)
     if xlim is not None:
         plt.xlim(xlim)
     ax.legend()
     plt.grid(True)
     plt.show()
-
-    # --- save angles ---
-    if flag_save:
-        N_cases = len(ids_plot)
-        count_plot = -1
-        for id_counter in range(N_cases):
-            id_case = ids_plot[id_counter]
-            phis = dds[id_case]["phis"]
-            Nphis = len(phis) # even integer
-            x_array = np.array(range(Nphis)) - Nphis/2
-            phis_ch = phis - np.pi/2.
-            del phis
-            mix.save_dat_plot_1d_file(
-                path_save_plots + "/phis_k{:d}.dat".format(
-                    int(dds[id_case]['function-parameter'])
-                ), 
-                x_array, 
-                phis_ch
-            )
     return 
 
 
 # ----------------------------------------------------------------------------------------
 # Plot maximum positive and negative angles for various kappa.
-def plot_max(dds):
+def plot_max(dds, flag_save, path_save_plots):
     Npr = len(dds)
     array_pos  = np.zeros(Npr)
     array_neg  = np.zeros(Npr)
     kappas     = np.zeros(Npr)
     for count_pr in range(Npr): 
         dd1 = dds[count_pr]
-        phis = dd1["phis"] - np.pi/2.
+        phis = np.array(dd1["phis"] - np.pi/2.)
         array_pos[count_pr] = np.max(phis)
         array_neg[count_pr] = np.max(-phis)
         kappas[count_pr]    = dd1["function-parameter"]
@@ -226,12 +237,68 @@ def plot_max(dds):
     plt.title("log10(abs(neg) - pos)")
     plt.grid(True)
     plt.show()
+
+    # --- Saving data ---
+    if flag_save:
+        mix.save_dat_plot_1d_file(
+            path_save_plots + "/log_diff_pos_neg.dat", 
+            kappas, 
+            np.log10(array_diff)
+        )
     return
 
 
+# ---------------------------------------------------------------------------------------------
+# --- Plot coefficients-envelop for various reference kappa ---
+def plot_coefs_var_kappa(dds, Ncoefs, ids_ch_coef):
+    def plot_one_coef(coefs_arr, str_coef):
+        colors = ["b", "r", "g", "orange", "magenta", "black"]
+
+        fig = plt.figure(figsize=(FIG_SIZE_W_, FIG_SIZE_H_))
+        ax = fig.add_subplot(111)
+        coefs = np.zeros(len(coefs_arr))
+        kappas = np.zeros(len(coefs_arr))
+        for ii in range(len(coefs_arr)):
+            kappas[ii] = dds[ii]["function-parameter"]
+
+        counter_1 = -1
+        for id_ch_coef in ids_ch_coef:
+            counter_1 += 1
+            for ii in range(len(coefs_arr)):
+                coefs[ii] = coefs_arr[ii][id_ch_coef]
+            ax.plot(
+                kappas, 
+                coefs, 
+                color=colors[counter_1], linewidth = 2, linestyle=':', marker = "o",
+                label = "coefs-{:s}[{:d}]".format(str_coef, id_ch_coef)
+
+            )
+        plt.xlabel('kappa')
+        plt.ylabel("coefs-{:s}".format(str_coef))
+        plt.grid(True)
+        plt.legend()
+        plt.show()     
+        return
+    # ------------------------------------------------------------------
+    cns = []
+    cps = []
+    for dd in dds:
+        cn, cp, _, _, _ = compute_coefs_envelop(
+            dd, Ncoefs = Ncoefs, 
+            flag_plot_envelop = False, 
+            flag_plot_shape = False,
+            flag_reconstruct = False
+        )
+        cns.append(cn)
+        cps.append(cp)
+
+    plot_one_coef(cps, "POS")
+    plot_one_coef(cns, "NEG")
+
+
 # ----------------------------------------------------------------------------------------
-# --- COMPUTE the coefficients to describe the change in the maximum and minimum anglea ---
-def compute_coefs_amplitudes(dds, Ncoefs = 4):
+# --- COMPUTE the coefficients to describe the change in the maximum and minimum angles ---
+def compute_coefs_amplitudes(dds, Ncoefs, flag_save, path_save_plots):
     def test_func(k, coefs):
         res_pol = coefs[0]
         for ii in range(1,Ncoefs):
@@ -281,34 +348,41 @@ def compute_coefs_amplitudes(dds, Ncoefs = 4):
     for ii in range(Npr):
         count_pr += 1
         dd1 = dds[ii]
-        phis = dd1["phis"] - np.pi/2.
+        phis = np.array(dd1["phis"] - np.pi/2.)
         kappas[count_pr]    = dd1["function-parameter"]
         pos_maxs[count_pr] = np.max(phis)
         neg_maxs[count_pr] = np.min(phis)
     coefs_neg = est_coefs(neg_maxs, "neg")
     coefs_pos = est_coefs(pos_maxs, "pos")
+
+    # --- Saving data ---
+    if flag_save:
+        mix.save_dat_plot_1d_file(path_save_plots + "/neg_ampls.dat", kappas, neg_maxs)
+        mix.save_dat_plot_1d_file(path_save_plots + "/pos_ampls.dat", kappas, pos_maxs)
     return coefs_neg, coefs_pos
 
 
 # ----------------------------------------------------------------------------------------
 # --- COMPUTE the coefficients to describe the change in the number of angles ---
-def compute_coefs_Na(dds, Ncoefs = 3):
+# flag_save to save the total number of angles versus kappa
+# but in python, this procedure draws N-angles-in-half-envelop;
+def compute_coefs_Na(dds, Ncoefs, flag_save, path_save_plots):
     def test_func(k, coefs):
         res_pol = coefs[0]
         for ii in range(1,Ncoefs):
             # res_pol += coefs[ii] * k**ii * np.log10(k**ii)
-            # res_pol += coefs[ii] * cp.multiply(
-            #     k**ii, 
-            #     cp.log(k**ii)/cp.log(10)
-            # )
-            res_pol += coefs[ii] * k**ii
+            res_pol += coefs[ii] * cp.multiply(
+                k**ii, 
+                cp.log(k**ii)/cp.log(10)
+            )
+            # res_pol += coefs[ii] * k**ii
         return res_pol 
     
     def test_func_np(k, coefs):
         res_pol = coefs[0]
         for ii in range(1,Ncoefs):
-            # res_pol += coefs[ii] * k**ii * np.log10(k**ii)
-            res_pol += coefs[ii] * k**ii
+            res_pol += coefs[ii] * k**ii * np.log10(k**ii)
+            # res_pol += coefs[ii] * k**ii
         return res_pol 
     
     def est_coefs(Na_env, label_max):
@@ -340,7 +414,7 @@ def compute_coefs_Na(dds, Ncoefs = 3):
             label = "- {:s}-maxs-reco".format(label_max)
         )
         plt.xlabel('kappa')
-        plt.ylabel('Na-env')
+        plt.ylabel('Na-env-half')
         ax.legend()
         plt.grid(True)
         plt.show()
@@ -348,6 +422,7 @@ def compute_coefs_Na(dds, Ncoefs = 3):
     # --------------------------------------------------
     Npr = len(dds)
     kappas   = np.zeros(Npr)
+    Na_arrays = np.zeros(Npr)
     Na_pos = np.zeros(Npr)
     Na_neg = np.zeros(Npr)
     count_pr = -1
@@ -356,9 +431,11 @@ def compute_coefs_Na(dds, Ncoefs = 3):
         dd1 = dds[ii]
         kappas[count_pr] = dd1["function-parameter"]
 
-        phis = dd1["phis"] - np.pi/2.
+        phis = np.array(dd1["phis"] - np.pi/2.)
 
         Na = len(phis)
+        Na_arrays[count_pr] = Na
+
         flag_more_neg_peaks = False
         if np.mod(Na//2,2) == 1:
             flag_more_neg_peaks = True
@@ -368,6 +445,11 @@ def compute_coefs_Na(dds, Ncoefs = 3):
         Na_pos[count_pr] = len(peaks_ch["pos-v"])//2
     coefs_neg = est_coefs(Na_neg, "neg")
     coefs_pos = est_coefs(Na_pos, "pos")
+
+     # --- Saving data ---
+    if flag_save:
+        mix.save_dat_plot_1d_file(path_save_plots + "/Na_kappa.dat", kappas, Na_arrays)
+
     return coefs_neg, coefs_pos
 
 
@@ -494,9 +576,16 @@ def compute_coefs_envelop(
             for ii in range(Ncoefs):
                 res_pol[ix] += a[ii] * np.cos((2*ii) * np.arccos(x[ix]))
         return res_pol
-
+    
     def compute_coefs_and_appr(N_half_env, half_norm_env):
         x = np.linspace(0.0, 1.0, N_half_env)
+
+        # x = np.zeros(N_half_env)
+        # for ii in range(N_half_env):
+        #     x[ii] = np.cos((2*ii + 1)*np.pi / (2.*N_half_env))
+        #     # x[ii] = np.cos((2*ii + 1)*np.pi / (2.*2.*N_half_env))
+        # x = np.flip(x)
+
         coefs_env = cp.Variable(Ncoefs)
         objective = cp.Minimize(cp.sum_squares(
             test_func_even_Ch(x,coefs_env) - half_norm_env
@@ -661,16 +750,17 @@ def compute_coefs_envelop(
 
 # ----------------------------------------------------------------------------------------
 # --- Plot coefficients approximating angles' envelop  ---
-def plot_env_coefs(dd, Ncoefs_arrs = [60, 50, 40]):
+def plot_env_coefs(dd, Ncoefs_arrs, flag_save, path_save_plots):
     def plot_one(coefs_arr, str_env):
-        colors = ["b", "r", "green"]
+        colors = ["b", "r", "green", "black"]
+        markers = ["o", "v", "^", "."]
         fig = plt.figure(figsize=(FIG_SIZE_W_,FIG_SIZE_H_))
         ax = fig.add_subplot(111)
         for ii in range(len(Ncoefs_arrs)):
             ax.plot(
-                np.array(range(len(coefs_arr[ii]))), 
+                range(len(coefs_arr[ii])), 
                 coefs_arr[ii], 
-                color=colors[ii], linewidth = 2, linestyle=':', marker = "o",
+                color=colors[ii], linewidth = 2, linestyle=':', marker = markers[ii],
                 label = "Nc = {:d}".format(Ncoefs_arrs[ii])
             )
         plt.xlabel('i')
@@ -696,6 +786,15 @@ def plot_env_coefs(dd, Ncoefs_arrs = [60, 50, 40]):
         coefs_pos_arr.append(coefs_shape_pos_1)
     plot_one(coefs_neg_arr, "NEG")
     plot_one(coefs_pos_arr, "POS")
+
+    # --- Saving data ---
+    if flag_save:
+        for ii in range(len(Ncoefs_arrs)):
+            mix.save_dat_plot_1d_file(
+                path_save_plots + "/Ch_coefs_pos_Nc{:d}.dat".format(Ncoefs_arrs[ii]), 
+                np.array(range(len(coefs_pos_arr[ii]))), 
+                np.log10(np.abs(coefs_pos_arr[ii]))
+            )
     return
 
 
@@ -876,8 +975,8 @@ def estimate_angles(dd, kappa_goal, Nh_neg_ref = None, Nh_pos_ref = None):
     def compute_Na(k, coef_Na_env):
         res_pol = coef_Na_env[0]
         for ii in range(1,len(coef_Na_env)):
-            # res_pol += coef_Na_env[ii] * k**ii * np.log10(k**ii)
-            res_pol += coef_Na_env[ii] * k**ii
+            res_pol += coef_Na_env[ii] * k**ii * np.log10(k**ii)
+            # res_pol += coef_Na_env[ii] * k**ii
         return int(res_pol)
     
 
