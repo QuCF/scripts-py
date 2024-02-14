@@ -3,7 +3,9 @@
 
 // The name of the file (without .hdf5 ) with coefficients describing 
 //		the polynomial approximation of the chosen function:
-filename_coefs    coefs/LCHS-weights_10_4
+// filename_coefs    coefs/LCHS-weights_60_3
+
+filename_coefs  coefs/sqrt_inv_arcsin2_20.000000_7
 
 // stopping parameter:
 stopping_criterion 1e-12

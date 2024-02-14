@@ -12,8 +12,6 @@ try:
 except:
     import Global_variables as GLO
     
-
-
 def reload():
     reload_module(GLO)
     return
@@ -71,27 +69,30 @@ LOG_INDENT = "   "
 CIRCUIT_LENGTH = 140
 
 
-# -----------------------------------------
-# --- *Lib3*: QMath ---
-
+# ------------------------------------------------------------------------------------------
 # get random unitary matrix:
 def get_unitary_matrix(Ndim):
     from scipy.stats import unitary_group
     U = np.matrix(unitary_group.rvs(Ndim), dtype=complex)
     return U
 
+
+# ------------------------------------------------------------------------------------------
 def get_slightly_non_unitary_matrix(Ndim, err):
     U = get_unitary_matrix(Ndim)
     nonunif = np.random.rand(Ndim, Ndim) * err
     res = U + nonunif
     return np.matrix(res)
 
+
+# ------------------------------------------------------------------------------------------
 def get_hermitian_matrix(Ndim):
     A_starting = np.matrix(np.random.rand(Ndim, Ndim))
     H = A_starting + A_starting.H
     return H
 
 
+# ------------------------------------------------------------------------------------------
 def hermitian_to_pauli(H, flag_filter = True, small_coef = 1e-14, flag_print_details=False):
     # INPUT:
     # -> H - Hermitian matrix of size N = 2**nq
@@ -167,6 +168,7 @@ def hermitian_to_pauli(H, flag_filter = True, small_coef = 1e-14, flag_print_det
     return H_decom
 
 
+# ------------------------------------------------------------------------------------------
 def hermitian_to_Z_pauli(H, flag_filter = True, small_coef = 1e-14, flag_print_details=True):
     # INPUT:
     # -> H - Hermitian matrix of size N = 2**nq
@@ -241,7 +243,7 @@ def hermitian_to_Z_pauli(H, flag_filter = True, small_coef = 1e-14, flag_print_d
     return H_decom
 
 
-
+# ------------------------------------------------------------------------------------------
 def reconstruct_hermitian_from_pauli(H_decom):
     # find matrix size:
     prod_0 = H_decom[0][1]
@@ -252,8 +254,8 @@ def reconstruct_hermitian_from_pauli(H_decom):
         H_rec = H_rec + one_term[0] * one_term[1]
     return H_rec
 
-# -----------------------------------------
-# --- *Lib4*: Diff ---
+
+# ------------------------------------------------------------------------------------------
 def diag_matrix_function(A, func):
     # find eigenvalues and corresponding normalized eigevectors
     evalues, evectors = np.linalg.eig(np.array(A))
@@ -268,6 +270,7 @@ def diag_matrix_function(A, func):
     return A_res, II, evalues, evectors
 
 
+# ------------------------------------------------------------------------------------------
 def find(x, x1):
     # works only for monotonic increasing arrays!!!
     id_x1 = np.where(x >= x1)[0]
@@ -279,6 +282,8 @@ def find(x, x1):
         x1 = None
     return id_x1, x1
 
+
+# ------------------------------------------------------------------------------------------
 def get_array(x, x_lower, x_upper):
     id_start = np.where(x >= x_lower)[0]
     if id_start.size != 0:
@@ -294,11 +299,15 @@ def get_array(x, x_lower, x_upper):
     ids = np.array([id_start, id_end])
     return x[ids[0]:ids[-1]+1], ids
 
+
+# ------------------------------------------------------------------------------------------
 def get_array_oo(oo, x, name_x):
     x_start = oo.get(name_x + '_start', x[0])
     x_end = oo.get(name_x + '_end', x[-1])
     return get_array(x, x_start, x_end)  # x_new, ids_x
 
+
+# ------------------------------------------------------------------------------------------
 def get_ids(x, x_domain, format_x='{:0.3e}'):
     # x = [x1, x2, x3, ...], where must be x[i] < x[i+1]
     # x_domain = some value or an array from two numbers
@@ -334,6 +343,8 @@ def get_ids(x, x_domain, format_x='{:0.3e}'):
 
     return ids, x_res, line_x
 
+
+# ------------------------------------------------------------------------------------------
 def get_slice(x, ids1, ids2=None, ids3=None):
     # 1D
     if isinstance(ids1, (int, np.int64)) and \
@@ -408,6 +419,8 @@ def get_slice(x, ids1, ids2=None, ids3=None):
             isinstance(ids3, (np.ndarray, list)):
         return x[ids1[0]:ids1[-1]+1, ids2[0]:ids2[-1]+1, ids3[0]:ids3[-1]+1]
 
+
+# ------------------------------------------------------------------------------------------
 # Create an array with different time intervals
 def get_t_intervals(oo, flag_print):
     # ---------------------------------------------------------
@@ -516,6 +529,8 @@ def get_t_intervals(oo, flag_print):
 
     return res
 
+
+# ------------------------------------------------------------------------------------------
 # Check if all list-elements are unique in a list y
 def is_unique(y):
     # y - list: [[...], [...], [...], ...]
@@ -525,6 +540,8 @@ def is_unique(y):
             return False
     return True
 
+
+# ------------------------------------------------------------------------------------------
 def normalization(sel_norm, dd=None):
     line_norm, coef_norm = '', 1
 
@@ -566,6 +583,8 @@ def normalization(sel_norm, dd=None):
     }
     return res_data
 
+
+# ------------------------------------------------------------------------------------------
 def choose_wg_normalization(sel_norm, dd=None):
     coef_norm_w, coef_norm_g, line_norm_w, line_norm_g = \
         None, None, '', ''
@@ -602,11 +621,14 @@ def choose_wg_normalization(sel_norm, dd=None):
                 dd['wc'] / (dd['cs'] / dd['R0'])
     return coef_norm_w, coef_norm_g, line_norm_w, line_norm_g
 
+
+# ------------------------------------------------------------------------------------------
 def error_mes(message):
     print('Error: ' + message)
     sys.exit(-1)
 
-# -----------------------------------------
+
+# ------------------------------------------------------------------------------------------
 # --- *Lib5*: Gates ---
 def Ry(ay):
     ay2 = ay/2.
@@ -671,7 +693,8 @@ def Ep(phi,theta):
     ])
     return resMatrix
 
-# -----------------------------------------
+
+# ------------------------------------------------------------------------------------------
 # --- *Lib6*: I/O ---
 def print_array(A, ff=[13, 3, "f"], n_in_row = 7, flag_remove_zeros=False, coef_remove_zeros=G_zero_err):
     ff_line = "{:" + str(ff[0]) + "." + str(ff[1]) + ff[2] + "}"
@@ -687,6 +710,7 @@ def print_array(A, ff=[13, 3, "f"], n_in_row = 7, flag_remove_zeros=False, coef_
     print(str_out)
 
 
+# ------------------------------------------------------------------------------------------
 def print_numbered_array(eig, ff=[13, 3, "f"], n_in_row = 7):
     if ff is None:
         if isinstance(eig[0], complex):
@@ -703,6 +727,7 @@ def print_numbered_array(eig, ff=[13, 3, "f"], n_in_row = 7):
     return
 
 
+# ------------------------------------------------------------------------------------------
 def print_matrix(A, ff=[13, 3, "f"], n_in_row = 8, gap_be = " ", sep_r = -1, sep_c = -1):
     ss = A.shape
     ff_line = "{:" + str(ff[0]) + "." + str(ff[1]) + ff[2] + "}"
@@ -724,6 +749,7 @@ def print_matrix(A, ff=[13, 3, "f"], n_in_row = 8, gap_be = " ", sep_r = -1, sep
         print(line_row)
 
 
+# ------------------------------------------------------------------------------------------
 def print_matrix_colored(
         A, 
         ff=[13, 3, "f"], 
@@ -764,6 +790,7 @@ def print_matrix_colored(
     return
 
 
+# ------------------------------------------------------------------------------------------
 def print_subblock_colored(
         A, 
         ir_start, ic_start,
@@ -780,18 +807,19 @@ def print_subblock_colored(
     return
 
 
+# ------------------------------------------------------------------------------------------
 def print_dict(dict):
     for kk in dict.keys():
         print(kk, ": ", dict[kk])
 
 
+# ------------------------------------------------------------------------------------------
 def read_matrix_csv(file_name, format_num):
     import csv
 
     data = []
     with open(file_name, newline='') as csvfile:
         spamreader = csv.reader(csvfile, delimiter=' ', quotechar='|')
-
         for xx in spamreader:
             data.append(xx)
 
@@ -799,10 +827,10 @@ def read_matrix_csv(file_name, format_num):
     for dd in data:
         x1 = list(map(format_num, dd[0].split(',')))
         res.append(x1)
-
     return np.matrix(res)
 
 
+# ------------------------------------------------------------------------------------------
 def read_file_general(file_name, format_num=float):
     import csv
 
@@ -823,6 +851,8 @@ def read_file_general(file_name, format_num=float):
 
     return res
 
+
+# ------------------------------------------------------------------------------------------
 # Create a line from a list of lines:
 def create_line_from_list(list_lines):
     if list_lines is None:
@@ -848,6 +878,7 @@ def create_line_from_list(list_lines):
     return resulting_line
 
 
+# ------------------------------------------------------------------------------------------
 # Create test from a list of lines:
 def create_text_from_list(list_lines):
     if list_lines is None:
@@ -860,6 +891,7 @@ def create_text_from_list(list_lines):
     return res
 
 
+# ------------------------------------------------------------------------------------------
 # compare two strings
 def compare_two_strings(line1, line2):
     if line1.lower() == line2.lower():
@@ -868,6 +900,7 @@ def compare_two_strings(line1, line2):
         return False
 
 
+# ------------------------------------------------------------------------------------------
 # is a string among the string:
 def is_string_among(line1, lines):
     for one_line in lines:
@@ -876,6 +909,7 @@ def is_string_among(line1, lines):
     return False
 
 
+# ------------------------------------------------------------------------------------------
 # find a word in a list:
 def find_word_in_list(list_data, word):
     word_temp = word.lower()
@@ -886,6 +920,7 @@ def find_word_in_list(list_data, word):
     return id_word
 
 
+# ------------------------------------------------------------------------------------------
 class Counter:
     counter = None
     n_elements = None
@@ -900,11 +935,13 @@ class Counter:
         return self.counter
 
 
+# ------------------------------------------------------------------------------------------
 def to_rgb(rgb):
     # rgb = (int, int, int)
     return GLO.to_rgb(rgb)
 
 
+# ------------------------------------------------------------------------------------------
 # get a bit array (array of bits) for a given integer;
 # E.g., integert 4 -> |100| if n = 3.
 def find_bit_array_of_int(ii,n):
@@ -916,6 +953,7 @@ def find_bit_array_of_int(ii,n):
     return np.array(res)
 
 
+# ------------------------------------------------------------------------------------------
 # E.g., [1,0,0] -> 4.
 def find_int_from_bit_array(bit_array):
     n_bits = len(bit_array)
@@ -926,6 +964,7 @@ def find_int_from_bit_array(bit_array):
     return int_res
 
 
+# ------------------------------------------------------------------------------------------
 def insert_indent(original_line, line_to_insert):
     data_lines = original_line.splitlines()
     for id_line in range(len(data_lines)):
@@ -934,6 +973,7 @@ def insert_indent(original_line, line_to_insert):
     return text_res
 
 
+# ------------------------------------------------------------------------------------------
 def is_digit(n):
     try:
         int(n)
@@ -942,6 +982,7 @@ def is_digit(n):
         return  False
 
 
+# ------------------------------------------------------------------------------------------
 def is_list_rows_equal(mat):
     sizes_mat = np.zeros(len(mat))
     for id in range(len(mat)):
@@ -949,6 +990,7 @@ def is_list_rows_equal(mat):
     return np.all(sizes_mat == sizes_mat[0])
 
 
+# ------------------------------------------------------------------------------------------
 def write_profile_condR(name_var, var_to_write, path_root):
     fname = path_root + "/" + name_var + ".condR_profile"
     print("writing a profile of " + name_var)
@@ -959,6 +1001,7 @@ def write_profile_condR(name_var, var_to_write, path_root):
             f.write(str_to_write + "\n") 
 
 
+# ------------------------------------------------------------------------------------------
 def write_init_state(name_var, path_root, init_real, init_imag):
     fname = path_root + "/" + name_var + "_INIT_STATE.hdf5"
     print("writing the initial state to the file:\n" + fname)
@@ -970,6 +1013,7 @@ def write_init_state(name_var, path_root, init_real, init_imag):
     return
 
 
+# ------------------------------------------------------------------------------------------
 def save_dat_plot_1d_file(full_fname, x, y):
     print(f"write data to a file: {full_fname}")
     N = len(x)
@@ -982,6 +1026,7 @@ def save_dat_plot_1d_file(full_fname, x, y):
     return
 
 
+# ------------------------------------------------------------------------------------------
 def save_dat_plot_1d_file(full_fname, x, y, y_error=None):
     print(f"write data to a file: {full_fname}")
     N = len(x)
@@ -999,6 +1044,7 @@ def save_dat_plot_1d_file(full_fname, x, y, y_error=None):
     return
 
 
+# ------------------------------------------------------------------------------------------
 def save_dat_plot_2d_file(full_fname, dd):
     import os 
 
@@ -1042,6 +1088,7 @@ def save_dat_plot_2d_file(full_fname, dd):
     os.system(command_line)
 
 
+# ------------------------------------------------------------------------------------------
 def is_zero(a, prec = 1e-12):
     if(np.abs(a) > prec):
         return False
@@ -1049,6 +1096,7 @@ def is_zero(a, prec = 1e-12):
         return True
 
 
+# ------------------------------------------------------------------------------------------
 def get_Rc_angles(complex_value, flag_sin = False):
     import cmath
     ww = cmath.polar(complex_value)
@@ -1060,6 +1108,7 @@ def get_Rc_angles(complex_value, flag_sin = False):
     return angle_z, angle_y
 
 
+# ------------------------------------------------------------------------------------------
 def get_angles_source_init_IV(ampl_0, ampl_1):
     # ampl_0: amplitude of |0>, is assumed to be real;
     # ampl_1: amplitude of |1>, can be complex;
@@ -1070,10 +1119,12 @@ def get_angles_source_init_IV(ampl_0, ampl_1):
     return angle_beta, angle_y, angle_delta
 
 
+# ------------------------------------------------------------------------------------------
 def inverse_bit(bit_init):
     return 0 if bit_init == 1 else 1
 
 
+# ------------------------------------------------------------------------------------------
 def form_complement_for_array_of_integers(N_full, init_array):
     init_array_unique = np.unique(init_array)
     N_init = len(init_array_unique)
@@ -1084,6 +1135,7 @@ def form_complement_for_array_of_integers(N_full, init_array):
     return res_array
 
 
+# ------------------------------------------------------------------------------------------
 # --- Find angles for the Rc or Ry gates ---
 def calc_angles_from_a_value(v1, prec = G_zero_err):
     if np.abs(v1.imag) < prec:
@@ -1096,6 +1148,7 @@ def calc_angles_from_a_value(v1, prec = G_zero_err):
     return [ay, az]
 
 
+# ------------------------------------------------------------------------------------------
 def action_of_RyRc_gates(groups, init_vector=zero_state_vector()):
     res_vec = init_vector
     for one_group in groups:
@@ -1105,6 +1158,7 @@ def action_of_RyRc_gates(groups, init_vector=zero_state_vector()):
     return res_vec
 
 
+# ------------------------------------------------------------------------------------------
 @jit(nopython=True)
 def compare_complex_values(a1, a2, prec = G_zero_err):
     flag_same = False
@@ -1114,6 +1168,7 @@ def compare_complex_values(a1, a2, prec = G_zero_err):
     return flag_same
 
 
+# ------------------------------------------------------------------------------------------
 def find_correcting_angles_for_Rc(required_value, init_vec, prec = G_zero_err):
     ay, az = find_correcting_angles_for_Rc_FLOAT(required_value, init_vec, prec)
     if ay is None:
@@ -1121,6 +1176,7 @@ def find_correcting_angles_for_Rc(required_value, init_vec, prec = G_zero_err):
     return ay, az 
 
 
+# ------------------------------------------------------------------------------------------
 def find_correcting_angles_for_Rc_FLOAT(required_value, init_vec, prec = G_zero_err):
     # print("FLOAT")
     w1 = init_vec[0]
@@ -1174,6 +1230,7 @@ def find_correcting_angles_for_Rc_FLOAT(required_value, init_vec, prec = G_zero_
     return None, None
 
 
+# ------------------------------------------------------------------------------------------
 def find_correcting_angles_for_Rc_MMATH(required_value, init_vec, prec = G_zero_err):
     print("MMATH")
     from mpmath import findroot
@@ -1216,7 +1273,7 @@ def find_correcting_angles_for_Rc_MMATH(required_value, init_vec, prec = G_zero_
     return None, None
 
     
-
+# ------------------------------------------------------------------------------------------
 @jit(nopython=True)
 def compare_matrices_dense(B, A, prec = 1e-6):
     N = A.shape[0]
@@ -1243,6 +1300,7 @@ def compare_matrices_dense(B, A, prec = 1e-6):
     return
 
 
+# ------------------------------------------------------------------------------------------
 def print_matrix_max_min_dense(A):
     max_A = np.max(np.max(np.abs(A)))
     min_A = np.min(np.min(np.abs(A[np.nonzero(A)])))
@@ -1252,6 +1310,7 @@ def print_matrix_max_min_dense(A):
     return
 
 
+# ------------------------------------------------------------------------------------------
 # compute the number of nonzero values in the matrix:
 @jit(nopython=True)
 def compute_Nz(D, prec = 1e-12):
@@ -1263,8 +1322,11 @@ def compute_Nz(D, prec = 1e-12):
                 N_nz += 1
     return N_nz
 
+# *****************************************************************************************************
+# *****************************************************************************************************
+# *****************************************************************************************************
 
-
+# ------------------------------------------------------------------------------------------
 class SparseMatrix:
     # A square sparse matrix (with N rows and N columns) with Nnz nonzero values:
     # ---
@@ -1283,6 +1345,7 @@ class SparseMatrix:
     _values_  = None
 
 
+    # ------------------------------------------------------------------------------------------
     def __init__(self, N, Nnz, rows, columns, values):
         if Nnz != len(values):
             print("Error: a wrong number of values.")
@@ -1304,6 +1367,7 @@ class SparseMatrix:
         return
     
 
+    # ------------------------------------------------------------------------------------------
     def is_the_same_as(self, SparseB, prec = 1e-6):
         Nb, bNnz, brows, bcolumns, bvalues = SparseB.get_data()
 
@@ -1337,6 +1401,7 @@ class SparseMatrix:
         return
     
 
+    # ------------------------------------------------------------------------------------------
     def print_max_min(self):
         max_A = np.max(np.max(np.abs(self._values_)))
         min_A = np.min(np.min(np.abs(
@@ -1348,6 +1413,7 @@ class SparseMatrix:
         return
     
 
+    # ------------------------------------------------------------------------------------------
     def print_matrix_real(self, 
             ir1, ic1, N,
             ff=[13, 3, "f"], 
@@ -1361,6 +1427,8 @@ class SparseMatrix:
         print_matrix_colored(A_new.form_dense_matrix().real, ff, n_in_row, gap_be, sep_r, sep_c, zero_thresh)
         return
     
+
+    # ------------------------------------------------------------------------------------------
     def print_matrix_imag(self, 
             ir1, ic1, N,
             ff=[13, 3, "f"], 
@@ -1375,6 +1443,7 @@ class SparseMatrix:
         return
 
 
+    # ------------------------------------------------------------------------------------------
     def get_values_in_a_row(self, ir):
         id_start = self._rows_[ir]
         id_end   = self._rows_[ir+1]
@@ -1386,6 +1455,7 @@ class SparseMatrix:
         return row
     
 
+    # ------------------------------------------------------------------------------------------
     def copy(self):
         A_new = SparseMatrix(
             self._N_,
@@ -1397,6 +1467,7 @@ class SparseMatrix:
         return A_new
     
 
+    # ------------------------------------------------------------------------------------------
     def get_slice(self, ir1, ic1, N):
         # (ir1, ic1) are the upper left starting row and column indices;
         # N is the number of rows (and columns) in the desired slice
@@ -1451,26 +1522,31 @@ class SparseMatrix:
         return A_new
 
 
+    # ------------------------------------------------------------------------------------------
     def get_data(self):
         return self._N_, self._Nnz_, self._rows_, self._columns_, self._values_
     
 
+    # ------------------------------------------------------------------------------------------
     def get_values(self):
         return self._values_
     
 
+    # ------------------------------------------------------------------------------------------
     def get_Nnz(self):
         return self._Nnz_
     
 
+    # ------------------------------------------------------------------------------------------
     def get_N(self):
         return self._N_
     
-
+    # ------------------------------------------------------------------------------------------
     def v(self, ii):
         return self._values_[ii]
     
 
+    # ------------------------------------------------------------------------------------------
     def get_matrix_element(self, ir, ic):
         if ir < 0 or ir >= self._N_:
             print("Error in SparseMatrix: the row index is beyond the size of the matrix.")
@@ -1489,6 +1565,12 @@ class SparseMatrix:
             sys.exit(-1)
 
 
+    # ------------------------------------------------------------------------------------------
+    def get_dense_matrix(self):
+        return self.form_dense_matrix()
+    
+
+    # ------------------------------------------------------------------------------------------
     def form_dense_matrix(self):
         A_dense = np.zeros((self._N_, self._N_), dtype=complex)
         for ir in range(self._N_):
@@ -1497,9 +1579,79 @@ class SparseMatrix:
         return A_dense
 
 
+    # -------------------------------------------------------------------------------
+    def plot_structure(self, 
+        name_A, 
+        sup_str="", 
+        file_save = "", flag_save = False, path_save = None, 
+        fontsize = 24, marker_size = 160,
+        text_coord_label = [1, 14],
+        text_coord_name_A = [12, 1],
+    ):
+        import matplotlib.pyplot as plt
+        def find_rows_columns(A):
+            N = A.shape[0]
+            rows_plot_1 = np.zeros(N*N)
+            cols_plot_1 = np.zeros(N*N)
+            N_nz_1 = 0
+            for ir in range(N):
+                for ic in range(N):
+                    if np.abs(A[ir, ic]) > 0:
+                        N_nz_1 += 1
+                        rows_plot_1[N_nz_1-1] = ir
+                        cols_plot_1[N_nz_1-1] = ic
+            rows_plot_1 = rows_plot_1[0:N_nz_1]
+            cols_plot_1 = cols_plot_1[0:N_nz_1]
+            return rows_plot_1, cols_plot_1
+        # -------------------------------------------------
+        
+        Ad = self.form_dense_matrix()
 
+        N = Ad.shape[0]
+        rows_A, cols_A = find_rows_columns(Ad)
 
+        fig1 = plt.figure(figsize=(10,10))
+        ax = fig1.add_subplot(111)
+        ax.scatter(rows_A, cols_A, color="red", s = marker_size) 
 
+        # plt.xlim(0, N - 1)
+        # plt.ylim(0, N - 1)
+        plt.xlim(-1,  N)
+        plt.ylim( N, -1)
+
+        plt.gca().invert_yaxis()
+        plt.xlabel(r'$\textbf{columns}$', fontsize = fontsize)
+        plt.ylabel(r"$\textbf{rows}$", fontsize = fontsize)
+        plt.grid()
+
+        plt.xlim(-1.0, N)
+        plt.ylim(N, -1.0)
+
+        plt.yticks(np.arange(0, N, 3))
+        plt.xticks(np.arange(0, N, 3))
+
+        ax.tick_params(axis='both', which='major', labelsize=fontsize)
+        ax.text(
+            int(text_coord_label[0]), int(text_coord_label[1]), 
+            r'$\textbf{' + sup_str + '}$', fontsize=fontsize
+        )
+        ax.text(
+            int(text_coord_name_A[0]), int(text_coord_name_A[1]), 
+            r'$' + name_A + '$', fontsize=fontsize
+        )
+        plt.show()
+        if flag_save:
+            if path_save is None:
+                print("Error: a path for saving a figure is not given.")
+                return
+            plt.savefig(path_save + "/" + "{:s}.png".format(file_save))
+        return
+        
+# *****************************************************************************************************
+# *****************************************************************************************************
+# *****************************************************************************************************
+    
+# ------------------------------------------------------------------------------------------
 @jit(nopython=True)
 def compare_matrices_sparse(
     Na, arows, acolumns, avalues, 
@@ -1515,8 +1667,10 @@ def compare_matrices_sparse(
             if not compare_complex_values(avalues[i_nz], bvalues[i_nz], prec=prec):
                 return False, "<<< WARNING: The matrices are not the same. >>>"
     return True, "The matrices are the same"
-                
 
+
+# ------------------------------------------------------------------------------------------               
+# Get a sparse matrix from a dense one.
 def form_sparse_matrix(A, prec = 1e-12):
     N = A.shape[0]
     Nnz = compute_Nz(A, prec)
@@ -1528,6 +1682,7 @@ def form_sparse_matrix(A, prec = 1e-12):
     return D_sparse
 
 
+# ------------------------------------------------------------------------------------------
 @jit(nopython=True)
 def form_sparse_matrix_CORE(A, N, D_rows, D_columns, D_values, prec):
     counter_v = -1
@@ -1543,6 +1698,7 @@ def form_sparse_matrix_CORE(A, N, D_rows, D_columns, D_values, prec):
     return 
 
 
+# ------------------------------------------------------------------------------------------
 def construct_sparse_from_sections(
         N, Nnz, N_sections, D_sections_columns, D_sections_values, prec
     ):
@@ -1566,7 +1722,7 @@ def construct_sparse_from_sections(
     return SparseMatrix(N, Nnz, D_rows, D_columns, D_values)
 
 
-
+# ------------------------------------------------------------------------------------------
 # Find the number of qubits in the counter register of the compression gagdet
 # to compute a product of N_mult matrices.
 def compute_nc_for_compression_gadget(N_mult):
@@ -1579,5 +1735,105 @@ def compute_nc_for_compression_gadget(N_mult):
     nc = nc_core + (1 - np.ceil(np.mod(N_mult,2**nc_core)/N_mult)) + qubit_for_adder
     return int(nc)
 
+
+# ------------------------------------------------------------------------------------------
+# Get a diagonal of a dense matrix. 
+def get_diag(A, i_shift):
+    N = A.shape[0]
+    diag = np.zeros(N-np.abs(i_shift), dtype=A.dtype)
+    if i_shift >= 0:
+        chosen_range = range(N-i_shift)
+        for ir in range(N-i_shift):
+            diag[ir] = A[ir, ir + i_shift]
+    else:
+        chosen_range = range(-i_shift, N)
+        for ir in chosen_range:
+            diag[ir + i_shift] = A[ir, ir + i_shift]
+    row_range = np.array(chosen_range)
+    return diag, row_range
+
+
+# ------------------------------------------------------------------------------------------
+# Normalize a dense matrix.
+def compute_normalized_matrix(A, name_A):
+    nonsparsity = find_nonsparsity(A)
+    if nonsparsity == 0:
+        return A, 1.0, 0.0
+    final_norm = nonsparsity
+    
+    coef_norm_A = find_norm_of_matrix(A)
+    if coef_norm_A > 1:
+        final_norm *= coef_norm_A  
+    A_norm = A / final_norm
+    print("Matrix {:s}:\t nonsparsity, coefnorm: {:d}, {:0.3e}".format(name_A, nonsparsity, final_norm))
+    return A_norm, final_norm, nonsparsity
+
+
+# ------------------------------------------------------------------------------------------
+def find_norm_of_matrix(A):
+    N = A.shape[0]
+    rows_sum = np.zeros(N)
+    for ir in range(N):
+        rows_sum[ir] = np.sqrt(np.sum(np.abs(A[ir,:])**2))
+    coef_norm = np.max(rows_sum)
+    return coef_norm
+
+
+# ------------------------------------------------------------------------------------------
+def find_nonsparsity(A):
+    # Assume that A is a square matrix.
+    coef_zero = 1e-12
+    N = A.shape[0]
+    final_nonsparsity = 0
+    for ir in range(N):
+        nonsparsity_row = 0
+        for ic in range(N):
+            if np.abs(A[ir, ic]) > coef_zero:
+                nonsparsity_row += 1
+        if nonsparsity_row > final_nonsparsity:
+            final_nonsparsity = nonsparsity_row
+    return final_nonsparsity
+
+
+# ------------------------------------------------------------------------------------------
+def is_Hermitian(A, name):
+    inds_nonzero = np.nonzero(np.transpose(np.conjugate(A)) - A)
+    if np.size(inds_nonzero) == 0:
+        print("the matrix {:s} is Hermitian".format(name))
+    else:
+        print("the matrix {:s} is non-Hermitian".format(name))
+    return
+
+
+# ------------------------------------------------------------------------------------------
+def get_herm_aherm_parts(B):
+    Bh = (B + h_adj(B)) / 2.
+    Ba = (B - h_adj(B)) / (2.j)
+    # B_ch = Bh + 1j * Ba
+    return Bh, Ba 
+
+
+# ------------------------------------------------------------------------------------------
+def h_adj(AA):
+    return np.transpose(np.conjugate(AA))
+
+
+# ------------------------------------------------------------------------------------------
+def is_Hermitian(A, name):
+    inds_nonzero = np.nonzero(np.transpose(np.conjugate(A)) - A)
+    if np.size(inds_nonzero) == 0:
+        print("the matrix {:s} is Hermitian".format(name))
+    else:
+        print("the matrix {:s} is non-Hermitian".format(name))
+    return
+
+
+# ------------------------------------------------------------------------------------------
+def amax(x):
+    return np.max(np.abs(x))
+
+# ------------------------------------------------------------------------------------------
+def sqrt_sum(x):
+    return np.sqrt(np.sum(np.abs(x)**2))
 
 

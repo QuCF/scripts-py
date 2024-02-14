@@ -6,6 +6,9 @@ import matplotlib.pyplot as plt
 import sys
 from numba import jit
 
+from scipy.linalg import expm
+from scipy.integrate import RK45
+
 import pylib.mix as mix
 import pylib.qucf_oracle as qucf_o
 import pylib.qucf_read as qucf_r
@@ -20,96 +23,8 @@ def reload():
     return
 
 
-
-
-
-# class KvN_:
-#     Nx = None
-#     Nt = None
-#     x = None
-#     t = None
-#     dx = None
-#     dt = None
-#     F_ = None
-
-
-#     def __init__(self, nx, nt, x_max, t_max, F_):
-#         self.F_ = F_
-#         self.Nx = 1<<nx
-#         self.Nt = 1<<nt
-#         self.x = np.linspace(-x_max, x_max, self.Nx)
-#         self.t = np.linspace(0, t_max, self.Nt)
-#         self.dx = np.diff(self.x)[0]
-#         self.dt = np.diff(self.t)[0]
-#         return
-
-
-#     def construct_CD_matrix(self):
-#         H_CD = np.zeros((self.Nx, self.Nx), dtype=complex)
-#         for ii in range(1,self.Nx-1):
-#             Fm = self.F_(self.x[ii-1]) 
-#             Fc = self.F_(self.x[ii]) 
-#             Fp = self.F_(self.x[ii+1]) 
-#             H_CD[ii,ii-1] = - (Fm + Fc)
-#             H_CD[ii,ii+1] =   (Fp + Fc)
-#         H_CD = -1j/(4.*self.dx) * H_CD
-#         H_CD[1,0] = 0.0
-#         H_CD[self.Nx-2, self.Nx-1] = 0.0
-#         return H_CD
-
-
-#     def construct_UW_matrix(self):
-#         H_UW = np.zeros((self.Nx, self.Nx), dtype=complex)
-#         for ii in range(1,self.Nx-1):
-#             Fc = self.F_(self.x[ii])
-
-#             if Fc <= 0:
-#                 Fp = self.F_(self.x[ii+1])
-#                 H_UW[ii,ii]   = - 2 * Fc
-#                 H_UW[ii,ii+1] = Fp + Fc
-#             else:
-#                 Fm = self.F_(self.x[ii-1])
-#                 H_UW[ii,ii]   = 2 * Fc
-#                 H_UW[ii,ii-1] = - (Fm + Fc)
-
-#         H_UW = -1j/(2.*self.dx) * H_UW
-#         # H_UW[self.Nx-2, self.Nx-1] = 0.0
-#         return H_UW
-
-
-#     def solve_using_matrix(self, A, psi_init):
-#         psi_tx = np.zeros((self.Nt,self.Nx), dtype = complex)
-#         psi_tx[0,:] = np.array(psi_init)
-
-#         coef_dt = self.dt * (-1j)
-#         for it in range(self.Nt-1):
-#             Hpsi = A.dot(psi_tx[it])
-
-#             for ix in range(1, self.Nx-1):
-#                 psi_tx[it+1, ix] = psi_tx[it, ix] + coef_dt * Hpsi[ix]
-#         return psi_tx
-
-
-#     def compute_mean(self, psi_tx_matrix):
-#         mean_t = np.zeros(self.Nt)
-#         for it in range(self.Nt):
-#             psi_t1   = psi_tx_matrix[it,:]
-#             psi_t1_c = np.conjugate(psi_t1)
-#             norm = psi_t1_c.dot(psi_t1) * self.dx
-#             mean_t[it] = np.real(np.trapz(self.x*psi_t1_c*psi_t1, dx=self.dx) / norm)
-#         return mean_t   
-
-
-# ----------------------------------------------------------------------------------------------
-# ----------------------------------------------------------------------------------------------
-
 def is_Hermitian(A, name):
-    inds_nonzero = np.nonzero(np.transpose(np.conjugate(A)) - A)
-    if np.size(inds_nonzero) == 0:
-        print("the matrix {:s} is Hermitian".format(name))
-    else:
-        print("the matrix {:s} is non-Hermitian".format(name))
-    return
+    return mix.is_Hermitian(A, name)
 
 
 def h_adj(AA):
@@ -117,16 +32,14 @@ def h_adj(AA):
     
 
 def get_herm_aherm_parts(B):
-    Bh = (B + h_adj(B)) / 2.
-    Ba = (B - h_adj(B)) / (2.j)
-    # B_ch = Bh + 1j * Ba
-    return Bh, Ba 
+    return mix.get_herm_aherm_parts(B)
 
 
 def plot_A_structure(
-        A, name_A, label_A, 
-        file_save, flag_save = False, path_save = None, 
-        fontsize = 24, cmap='bwr', marker_size = 160,
+        A, 
+        name_A = "", label_A = "", 
+        file_save = "", flag_save = False, path_save = None, 
+        fontsize = 24, marker_size = 160,
         text_coord_label = [1, 14],
         text_coord_name_A = [12, 1],
 ):
@@ -177,3 +90,372 @@ def plot_A_structure(
             return
         plt.savefig(path_save + "/" + "{:s}.png".format(file_save))
     return
+
+
+# ---------------------------------------------------------------------------
+def is_Hermitian(A, name):
+    return mix.is_Hermitian(A, name)
+
+
+# ---------------------------------------------------------------------------
+def construct_CD_matrix_1D(x, F):
+    Nx = len(x)
+    dx = np.diff(x)[0]
+    H_CD = np.zeros((Nx, Nx), dtype=complex)
+    for ii in range(1,Nx-1):
+        Fm = F(x[ii-1]) 
+        Fc = F(x[ii]) 
+        Fp = F(x[ii+1]) 
+        H_CD[ii,ii-1] = - (Fm + Fc)
+        H_CD[ii,ii+1] =   (Fp + Fc)
+    H_CD = -1j/(4.*dx) * H_CD
+    H_CD[1,0] = 0.0
+    H_CD[Nx-2, Nx-1] = 0.0
+    return H_CD
+
+
+# ---------------------------------------------------------------------------
+def construct_UW_matrix_1D(x, F, flag_asin=False):
+    import pylib.Chebyschev_coefs as ch
+
+    def delta_f(i1, i2):
+        if i1 == i2:
+            return 1
+        else:
+            return 0
+    # ----------------------------------
+    Nx = len(x)
+    dx = np.diff(x)[0]
+    H_UW = np.zeros((Nx, Nx), dtype=complex)
+
+    for ir in range(Nx):
+        Fr = F(x[ir])
+        ss_r = int(Fr/np.abs(Fr))
+        H_UW[ir, ir] = - 2. * ss_r * Fr
+        ic  = ir - ss_r
+        if ic >= 0 and ic < Nx:
+            Fc = F(x[ic])
+            H_UW[ir, ic] = ss_r * (Fr + Fc)
+    H_UW = 1.j/(2.*dx) * H_UW
+
+    # ---------------------------------------------------------
+    # --- Compute Hermitian and anti-Hermitian of 1j * H_UW ---
+
+    # *** OPTION 1 ***
+    Ah_v1, Aa_v1 = get_herm_aherm_parts(1j * H_UW)
+
+    # *** OPTION 2 ***
+    x_roots = ch.get_Cheb_roots(Nx)
+    x_loc = np.array(x_roots)
+
+    Aa_v2 = np.zeros((Nx, Nx), dtype=complex)
+    Ah_v2 = np.zeros((Nx, Nx), dtype=complex)
+    for ir in range(Nx):
+        if flag_asin:
+            Fr = F(np.arcsin(x_loc[ir]))
+        else:
+            Fr = F(x_loc[ir])
+
+        Fr_cc = np.conjugate(Fr)
+        ss_r = int(Fr/np.abs(Fr))
+        Aa_v2[ir, ir] = - 2. * ss_r * (Fr - Fr_cc)
+        Ah_v2[ir, ir] = - 2. * ss_r * (Fr + Fr_cc)
+
+        ic = ir + 1
+        if ic >= 0 and ic < Nx:
+            if flag_asin:
+                Fc = F(np.arcsin(x_loc[ic]))
+            else:
+                Fc = F(x_loc[ic])
+            Fc_cc = np.conjugate(Fc)
+            ss_c = int(Fc/np.abs(Fc))
+
+            temp_1 = delta_f(ss_r,-1) * (Fr + Fc)
+            temp_2 = delta_f(ss_c, 1) * (Fr_cc + Fc_cc)
+
+            Aa_v2[ir, ic] = - (temp_1 + temp_2)
+            Ah_v2[ir, ic] = - temp_1 + temp_2
+
+        ic = ir - 1
+        if ic >= 0 and ic < Nx:
+            if flag_asin:
+                Fc = F(np.arcsin(x_loc[ic]))
+            else:
+                Fc = F(x_loc[ic])
+            Fc_cc = np.conjugate(Fc)
+            ss_c = int(Fc/np.abs(Fc))
+
+            temp_1 = delta_f(ss_r, 1) * (Fr + Fc)
+            temp_2 = delta_f(ss_c,-1) * (Fr_cc + Fc_cc)
+
+            Aa_v2[ir, ic] = temp_1 + temp_2
+            Ah_v2[ir, ic] = temp_1 - temp_2
+
+    Aa_v2 = 1.j/(4.*dx) * Aa_v2
+    Ah_v2 = -1./(4.*dx) * Ah_v2
+
+    return H_UW, Aa_v1, Ah_v1, Aa_v2, Ah_v2
+
+
+# ---------------------------------------------------------------------------
+def solve_KvN_1D_using_Hamiltonian(t, Nx, psi_init, A):
+    Nt = len(t)
+    dt = np.diff(t)[0]
+
+    psi_tx      = np.zeros((Nt,Nx), dtype = complex)
+    psi_tx[0,:] = np.array(psi_init)
+
+    coef_dt = dt * (-1j)
+    for it in range(Nt-1):
+        Hpsi = A.dot(psi_tx[it])
+
+        for ix in range(1, Nx-1):
+            psi_tx[it+1, ix] = psi_tx[it, ix] + coef_dt * Hpsi[ix]
+    return psi_tx
+
+
+# ---------------------------------------------------------------------------
+def compute_mean_1D(x, Nt, psi_tx_matrix):
+    # x_operator = np.diag(x)
+    dx = np.diff(x)[0]
+    mean_t = np.zeros(Nt)
+    for it in range(Nt):
+        psi_t1   = psi_tx_matrix[it,:]
+        psi_t1_c = np.conjugate(psi_t1)
+        norm = psi_t1_c.dot(psi_t1) * dx
+        mean_t[it] = np.real(np.trapz(x*psi_t1_c*psi_t1, dx=dx) / norm)
+    return mean_t
+
+
+# ------------------------------------------------------------------------------------------------
+def comp_LCHS_weights(k):
+    dk = np.diff(k)[0]
+    Nk = len(k)
+
+    wk = np.zeros(Nk)
+    for ik in range(Nk):
+        wk[ik] = 1. / (1 + k[ik]*k[ik])
+    wk = wk * dk/np.pi
+    wk[0]  = 0.5 * wk[0]
+    wk[-1] = 0.5 * wk[-1]  
+    return wk
+
+
+# ------------------------------------------------------------------------------------------------
+def LCHS_computation(k, dt, Hi, psi_init, Nt_loc, flag_trotterization, flag_print = False):
+    # if flag_direct = False, use 2nd order Trotterization.
+
+    # k-grid:
+    dk = np.diff(k)[0]
+    k_max = k[-1]
+    Nk = len(k)
+
+    # matrices:
+    Bh, Ba = get_herm_aherm_parts(Hi)
+    wk = comp_LCHS_weights(k)
+    N = Hi.shape[0]
+    
+    exp_max = None
+    exp_Ba = None
+    if flag_trotterization:
+        Prop_Ba = -1.j * dt/2. * Ba
+        exp_Ba = expm(Prop_Ba)
+        Prop_kmax = 1.j * dt * k_max* Bh
+        exp_max = expm(Prop_kmax)
+        del Prop_Ba, Prop_kmax
+    
+    exp_LCHS = np.zeros((N,N), dtype=complex)
+    for ik in range(Nk):
+        temp = np.identity(N, dtype=complex)
+        
+        exp_dt = None
+        if not flag_trotterization:
+            Prop_k = -1.j * dt * (Ba + k[ik]*Bh) # here, use Trotterization
+            exp_dt = expm(Prop_k)
+        else:
+            Prop_k = -1.j * dt * (ik * dk) * Bh
+            exp_dt = exp_max.dot(expm(Prop_k))
+            exp_dt = exp_dt.dot(exp_Ba)
+            exp_dt = exp_Ba.dot(exp_dt)
+            
+        for it in range(Nt_loc):
+            temp = exp_dt.dot(temp)
+        exp_LCHS += wk[ik] * temp
+    del temp, Prop_k, exp_max, exp_Ba, exp_dt, ik
+         
+    # compare the exponentiating matrices:
+    if flag_print:
+        exp_ref = np.identity(N, dtype=complex)
+        exp_dt  = expm(-dt*Hi)
+        for it in range(Nt_loc):
+            exp_ref = exp_dt.dot(exp_ref)
+        del exp_dt
+    
+        analyse_exp_matrices(exp_ref, exp_LCHS)
+        del exp_ref
+        
+    # compute the output quantum state:
+    psi_t = exp_LCHS.dot(psi_init)
+    
+    if flag_print:
+        print()
+        print("sum psi_t_max[max-time]**2: {:0.3e}".format(np.sum(np.abs(psi_t)**2)))
+    return psi_t
+
+
+# ------------------------------------------------------------------------------------------------
+def analyse_exp_matrices(exp_1, exp_2):
+    print("\n--- Exponentiation matrices ---")
+    print(exp_1)
+    print()
+    print(exp_2)
+
+    print("\n --- Difference between the matrix elements ---")
+    abs_err_max = 0.0
+    for ir in range(exp_1.shape[0]):
+        for ic in range(exp_1.shape[1]):
+            diff_comp = exp_1[ir,ic] - exp_2[ir,ic]
+            abs_err = np.abs(diff_comp)
+            if abs_err > abs_err_max:
+                abs_err_max = abs_err
+            print("[{:d},{:d}]: {:20.3e}".format(ir,ic, diff_comp))
+    print()
+    print("max. abs. error: {:0.3e}".format(abs_err_max))
+    print("- log of max. abs. error: {:0.3f}".format(-np.log10(abs_err_max)))
+
+
+
+
+# ------------------------------------------------------------------------------------------------
+def compute_normalized_matrix(A, name_A):
+    return mix.compute_normalized_matrix(A, name_A)
+
+
+# ------------------------------------------------------------------------------------------------
+def get_diag(A, i_shift):
+    return mix.get_diag(A, i_shift)
+
+
+# ------------------------------------------------------------------------------------------------
+def compute_norm_matrices_LCHS(Aa, Ah, kmax, dk):
+    Ba     = Aa
+    B_kmax = - kmax * Ah
+    Bk     =     dk * Ah
+
+    # --- Normalize the matrices ---
+    Ba_norm_,     ncoef_a_,    nonsparsity_a_    = mix.compute_normalized_matrix(Ba,     "Ba")
+    B_kmax_norm_, ncoef_kmax_, nonsparsity_kmax_ = mix.compute_normalized_matrix(B_kmax, "B_kmax")
+    Bk_norm_,     ncoef_k_,    nonsparsity_k_    = mix.compute_normalized_matrix(Bk,     "Bk")
+    print()
+    print("norm of Ba_norm_:     {:0.3f}".format(mix.find_norm_of_matrix(Ba_norm_)))
+    print("norm of B_kmax_norm_: {:0.3f}".format(mix.find_norm_of_matrix(B_kmax_norm_)))
+    print("norm of Bk_norm_:     {:0.3f}".format(mix.find_norm_of_matrix(Bk_norm_)))
+    return Ba_norm_, B_kmax_norm_, Bk_norm_
+
+
+
+# ------------------------------------------------------------------------------------------------
+def plot_save_diagonals(A_plot, A_name, flag_save, flag_save_real, path_save):
+
+    def save_data(rows_loc, diag_loc, sh_loc):
+        full_name = path_save + "//" + A_name + "_diag_{:d}".format(sh_loc)
+        if flag_save_real:
+            yx_loc = diag_loc.real
+        else:
+            yx_loc = diag_loc.imag
+        mix.save_dat_plot_1d_file(full_name, rows_loc, yx_loc)
+        return
+    # ----------------------------------------
+
+    sh_1 = 0
+    diag_1, rows_1 = get_diag(A_plot, i_shift = sh_1)
+
+    sh_2 = 1
+    diag_2, rows_2 = get_diag(A_plot, i_shift = sh_2)
+
+    sh_3 = -1
+    diag_3, rows_3 = get_diag(A_plot, i_shift = sh_3)
+
+
+    # --- Real parts ---
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.plot(rows_1, diag_1.real, color='b', linewidth = 2, linestyle='-', label = "shift = {:d}".format(sh_1))
+    ax.plot(rows_2, diag_2.real, color='r', linewidth = 2, linestyle='--', label = "shift = {:d}".format(sh_2))
+    ax.plot(rows_3, diag_3.real, color='g', linewidth = 2, linestyle='--', label = "shift = {:d}".format(sh_3))
+    plt.xlabel('row')
+    plt.ylabel("Re")
+    plt.title("Real parts of {:s}".format(A_name))
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+    # --- Imaginary parts ---
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.plot(rows_1, diag_1.imag, color='b', linewidth = 2, linestyle='-', label = "shift = {:d}".format(sh_1))
+    ax.plot(rows_2, diag_2.imag, color='r', linewidth = 2, linestyle='--', label = "shift = {:d}".format(sh_2))
+    ax.plot(rows_3, diag_3.imag, color='g', linewidth = 2, linestyle='--', label = "shift = {:d}".format(sh_3))
+    plt.xlabel('row')
+    plt.ylabel("Im")
+    plt.title("Imag parts of {:s}".format(A_name))
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+    # --- Saving ---
+    if flag_save:
+        save_data(rows_1, diag_1, sh_1)
+        save_data(rows_2, diag_2, sh_2)
+        save_data(rows_3, diag_3, sh_3)
+    return
+
+
+# ------------------------------------------------------------------------------------------------
+def get_rescaled_diags_BE(Ba_norm, B_kmax_norm, Bk_norm):
+    # --- get diagonals ---
+    diag_A_m1, range_A_m1 = get_diag(Ba_norm, -1)
+    diag_A_p1, range_A_p1 = get_diag(Ba_norm,  1)
+
+    diag_kmax_m1, range_kmax_m1 = get_diag(B_kmax_norm, -1)
+    diag_kmax_00, range_kmax_00 = get_diag(B_kmax_norm,  0)
+    diag_kmax_p1, range_kmax_p1 = get_diag(B_kmax_norm,  1)
+
+    diag_k_m1, range_k_m1 = get_diag(Bk_norm, -1)
+    diag_k_00, range_k_00 = get_diag(Bk_norm,  0)
+    diag_k_p1, range_k_p1 = get_diag(Bk_norm,  1)
+
+    # --- rescaling ---
+    coef_A = 0.500
+    diag_A_m1 = diag_A_m1.imag / coef_A
+    diag_A_p1 = diag_A_p1.imag / coef_A
+
+    coef_mp, coef_0 = 0.250, 0.500
+    diag_kmax_m1 = diag_kmax_m1.real / coef_mp
+    diag_kmax_00 = diag_kmax_00.real / coef_0
+    diag_kmax_p1 = diag_kmax_p1.real / coef_mp
+
+    diag_k_m1 = diag_k_m1.real / coef_mp
+    diag_k_00 = diag_k_00.real / coef_0
+    diag_k_p1 = diag_k_p1.real / coef_mp
+
+    dd_diags = {
+        "diag_A_m1": diag_A_m1, "range_A_m1": range_A_m1,
+        "diag_A_p1": diag_A_p1, "range_A_p1": range_A_p1,
+        "diag_kmax_m1": diag_kmax_m1, "range_kmax_m1": range_kmax_m1,
+        "diag_kmax_00": diag_kmax_00, "range_kmax_00": range_kmax_00,
+        "diag_kmax_p1": diag_kmax_p1, "range_kmax_p1": range_kmax_p1,
+        "diag_k_m1": diag_k_m1, "range_k_m1": range_k_m1,
+        "diag_k_00": diag_k_00, "range_k_00": range_k_00,
+        "diag_k_p1": diag_k_p1, "range_k_p1": range_k_p1,
+        "coef_A":    coef_A,  "coef_edge_A": 1./np.sqrt(2.),
+        "coef_k_mp": coef_mp, "coef_edge_k": 1./2**(3/2),
+        "coef_k_0":  coef_0,  
+    }
+    return dd_diags
+
+
+
+
+
+
