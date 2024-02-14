@@ -115,7 +115,9 @@ def construct_CD_matrix_1D(x, F):
 
 
 # ---------------------------------------------------------------------------
-def construct_UW_matrix_1D(x, F):
+def construct_UW_matrix_1D(x, F, flag_asin=False):
+    import pylib.Chebyschev_coefs as ch
+
     def delta_f(i1, i2):
         if i1 == i2:
             return 1
@@ -136,39 +138,6 @@ def construct_UW_matrix_1D(x, F):
             H_UW[ir, ic] = ss_r * (Fr + Fc)
     H_UW = 1.j/(2.*dx) * H_UW
 
-
-    # # --- left ---
-    # Fc = F(x[0])
-    # if Fc <= 0:
-    #     Fp = F(x[ii+1])
-    #     H_UW[0,0] = - 2 * Fc
-    #     H_UW[0,1] = Fp + Fc
-    # else:
-    #     H_UW[0,0]   = 2 * Fc
-    # # --- bulk ---    
-    # for ii in range(1,Nx-1):
-    #     Fc = F(x[ii])
-
-    #     if Fc <= 0:
-    #         Fp = F(x[ii+1])
-    #         H_UW[ii,ii]   = - 2 * Fc
-    #         H_UW[ii,ii+1] = Fp + Fc
-    #     else:
-    #         Fm = F(x[ii-1])
-    #         H_UW[ii,ii]   = 2 * Fc
-    #         H_UW[ii,ii-1] = - (Fm + Fc)
-    # # --- right ---
-    # Fc = F(x[Nx-1])
-    # if Fc <= 0:
-    #     H_UW[Nx-1,Nx-1] = - 2 * Fc
-    # else:
-    #     Fm = F(x[Nx-2])
-    #     H_UW[Nx-1,Nx-1] = 2 * Fc
-    #     H_UW[Nx-1,Nx-2] = - (Fm + Fc)
-    # # ---
-    # H_UW = -1j/(2.*dx) * H_UW
-    # # H_UW[Nx-2, Nx-1] = 0.0
-
     # ---------------------------------------------------------
     # --- Compute Hermitian and anti-Hermitian of 1j * H_UW ---
 
@@ -176,18 +145,28 @@ def construct_UW_matrix_1D(x, F):
     Ah_v1, Aa_v1 = get_herm_aherm_parts(1j * H_UW)
 
     # *** OPTION 2 ***
+    x_roots = ch.get_Cheb_roots(Nx)
+    x_loc = np.array(x_roots)
+
     Aa_v2 = np.zeros((Nx, Nx), dtype=complex)
     Ah_v2 = np.zeros((Nx, Nx), dtype=complex)
     for ir in range(Nx):
-        Fr = F(x[ir])
+        if flag_asin:
+            Fr = F(np.arcsin(x_loc[ir]))
+        else:
+            Fr = F(x_loc[ir])
+
         Fr_cc = np.conjugate(Fr)
         ss_r = int(Fr/np.abs(Fr))
         Aa_v2[ir, ir] = - 2. * ss_r * (Fr - Fr_cc)
         Ah_v2[ir, ir] = - 2. * ss_r * (Fr + Fr_cc)
 
-        ic  = ir + 1
+        ic = ir + 1
         if ic >= 0 and ic < Nx:
-            Fc = F(x[ic])
+            if flag_asin:
+                Fc = F(np.arcsin(x_loc[ic]))
+            else:
+                Fc = F(x_loc[ic])
             Fc_cc = np.conjugate(Fc)
             ss_c = int(Fc/np.abs(Fc))
 
@@ -197,9 +176,12 @@ def construct_UW_matrix_1D(x, F):
             Aa_v2[ir, ic] = - (temp_1 + temp_2)
             Ah_v2[ir, ic] = - temp_1 + temp_2
 
-        ic  = ir - 1
+        ic = ir - 1
         if ic >= 0 and ic < Nx:
-            Fc = F(x[ic])
+            if flag_asin:
+                Fc = F(np.arcsin(x_loc[ic]))
+            else:
+                Fc = F(x_loc[ic])
             Fc_cc = np.conjugate(Fc)
             ss_c = int(Fc/np.abs(Fc))
 
@@ -372,8 +354,105 @@ def compute_norm_matrices_LCHS(Aa, Ah, kmax, dk):
 
 
 
+# ------------------------------------------------------------------------------------------------
+def plot_save_diagonals(A_plot, A_name, flag_save, flag_save_real, path_save):
+
+    def save_data(rows_loc, diag_loc, sh_loc):
+        full_name = path_save + "//" + A_name + "_diag_{:d}".format(sh_loc)
+        if flag_save_real:
+            yx_loc = diag_loc.real
+        else:
+            yx_loc = diag_loc.imag
+        mix.save_dat_plot_1d_file(full_name, rows_loc, yx_loc)
+        return
+    # ----------------------------------------
+
+    sh_1 = 0
+    diag_1, rows_1 = get_diag(A_plot, i_shift = sh_1)
+
+    sh_2 = 1
+    diag_2, rows_2 = get_diag(A_plot, i_shift = sh_2)
+
+    sh_3 = -1
+    diag_3, rows_3 = get_diag(A_plot, i_shift = sh_3)
 
 
+    # --- Real parts ---
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.plot(rows_1, diag_1.real, color='b', linewidth = 2, linestyle='-', label = "shift = {:d}".format(sh_1))
+    ax.plot(rows_2, diag_2.real, color='r', linewidth = 2, linestyle='--', label = "shift = {:d}".format(sh_2))
+    ax.plot(rows_3, diag_3.real, color='g', linewidth = 2, linestyle='--', label = "shift = {:d}".format(sh_3))
+    plt.xlabel('row')
+    plt.ylabel("Re")
+    plt.title("Real parts of {:s}".format(A_name))
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+    # --- Imaginary parts ---
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.plot(rows_1, diag_1.imag, color='b', linewidth = 2, linestyle='-', label = "shift = {:d}".format(sh_1))
+    ax.plot(rows_2, diag_2.imag, color='r', linewidth = 2, linestyle='--', label = "shift = {:d}".format(sh_2))
+    ax.plot(rows_3, diag_3.imag, color='g', linewidth = 2, linestyle='--', label = "shift = {:d}".format(sh_3))
+    plt.xlabel('row')
+    plt.ylabel("Im")
+    plt.title("Imag parts of {:s}".format(A_name))
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+    # --- Saving ---
+    if flag_save:
+        save_data(rows_1, diag_1, sh_1)
+        save_data(rows_2, diag_2, sh_2)
+        save_data(rows_3, diag_3, sh_3)
+    return
+
+
+# ------------------------------------------------------------------------------------------------
+def get_rescaled_diags_BE(Ba_norm, B_kmax_norm, Bk_norm):
+    # --- get diagonals ---
+    diag_A_m1, range_A_m1 = get_diag(Ba_norm, -1)
+    diag_A_p1, range_A_p1 = get_diag(Ba_norm,  1)
+
+    diag_kmax_m1, range_kmax_m1 = get_diag(B_kmax_norm, -1)
+    diag_kmax_00, range_kmax_00 = get_diag(B_kmax_norm,  0)
+    diag_kmax_p1, range_kmax_p1 = get_diag(B_kmax_norm,  1)
+
+    diag_k_m1, range_k_m1 = get_diag(Bk_norm, -1)
+    diag_k_00, range_k_00 = get_diag(Bk_norm,  0)
+    diag_k_p1, range_k_p1 = get_diag(Bk_norm,  1)
+
+    # --- rescaling ---
+    coef_A = 0.500
+    diag_A_m1 = diag_A_m1.imag / coef_A
+    diag_A_p1 = diag_A_p1.imag / coef_A
+
+    coef_mp, coef_0 = 0.250, 0.500
+    diag_kmax_m1 = diag_kmax_m1.real / coef_mp
+    diag_kmax_00 = diag_kmax_00.real / coef_0
+    diag_kmax_p1 = diag_kmax_p1.real / coef_mp
+
+    diag_k_m1 = diag_k_m1.real / coef_mp
+    diag_k_00 = diag_k_00.real / coef_0
+    diag_k_p1 = diag_k_p1.real / coef_mp
+
+    dd_diags = {
+        "diag_A_m1": diag_A_m1, "range_A_m1": range_A_m1,
+        "diag_A_p1": diag_A_p1, "range_A_p1": range_A_p1,
+        "diag_kmax_m1": diag_kmax_m1, "range_kmax_m1": range_kmax_m1,
+        "diag_kmax_00": diag_kmax_00, "range_kmax_00": range_kmax_00,
+        "diag_kmax_p1": diag_kmax_p1, "range_kmax_p1": range_kmax_p1,
+        "diag_k_m1": diag_k_m1, "range_k_m1": range_k_m1,
+        "diag_k_00": diag_k_00, "range_k_00": range_k_00,
+        "diag_k_p1": diag_k_p1, "range_k_p1": range_k_p1,
+        "coef_A":    coef_A,  "coef_edge_A": 1./np.sqrt(2.),
+        "coef_k_mp": coef_mp, "coef_edge_k": 1./2**(3/2),
+        "coef_k_0":  coef_0,  
+    }
+    return dd_diags
 
 
 

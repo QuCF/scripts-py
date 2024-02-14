@@ -1,9 +1,10 @@
-// to launch: $qucf_angles calc_inv
+// to launch: $qucf_angles calc_nl_be
 
 
 // The name of the file (without .hdf5 ) with coefficients describing 
 //		the polynomial approximation of the chosen function:
-filename_coefs    coefs/prof_A_m1__eps3
+filename_coefs    coefs/prof_kmax_p1__eps14
+output_name     kmax_p1_eps14
 
 // stopping parameter:
 stopping_criterion 1e-12

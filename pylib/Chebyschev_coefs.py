@@ -161,13 +161,25 @@ class Ch_:
         for ii in range(Nx):
             y[ii] = 1. / np.sqrt(1 + self.par_**2 * np.arcsin(x[ii])**2)
         return y   
-
-
+    
+    # - id_fun_ = 10 -
+    def series_x(self, x):
+        Nx = len(x)
+        y = np.zeros(Nx)
+        for ix in range(Nx):
+            y[ix] = 0.
+            for i_coef in range(len(self.series_coefs_)):
+                # y[ix] += self.series_coefs_[i_coef] * np.arcsin(x[ix]) ** i_coef
+                y[ix] += self.series_coefs_[i_coef] * np.cos(np.arcsin(x[ix]) * i_coef)
+        return y
+    
     # --- Choose the function for which Chebyschev coefficients should be computed. ---
     def choose_func(
             self, id_func, par_in, 
-            profile_in = None, name_prof = None,
-            parity_in = None, path_root_in = None
+            profile_in = None, 
+            name_prof = None,
+            parity_in = None, path_root_in = None,
+            series_coefs = None
     ):
         self.par_ = par_in
         self.id_fun_ = id_func
@@ -221,6 +233,16 @@ class Ch_:
             self.line_f_ = "LCHS-weights"
             self.line_par_ = "{:d}".format(int(self.par_))
 
+        if self.id_fun_ == 10:
+            self.series_coefs_ = series_coefs
+            self.path_root_ = path_root_in
+            self.coef_norm_ = 1.0
+            self.parity_ = parity_in
+            self.func_ch_ = self.series_x
+            self.line_f_ = name_prof
+            self.line_par_ = "Nc{:d}".format(len(self.series_coefs_))
+
+
         # --- Take the test and reconstruction functions appropriate to the chosen parity ---
         self.reproduce_eventest_func_ = None
         self.rec_func_ = None
@@ -254,10 +276,7 @@ class Ch_:
             self.Nx_ = len(self.y_ref_)
 
         # x-grid: Chebyschev roots:
-        self.x_ = np.zeros(self.Nx_)
-        for ii in range(self.Nx_):
-            self.x_[ii] = np.cos((2*ii + 1)*np.pi / (2.*self.Nx_))
-        self.x_ = np.flip(self.x_)
+        self.x_ = get_Cheb_roots(self.Nx_)    
 
         # - Evaluate the chosen function -
         if self.id_fun_ >= 0:
@@ -353,11 +372,11 @@ class Ch_:
     def plot_errors(self):
         fig = plt.figure()
         ax = fig.add_subplot(111)
-        ax.plot(self.x_, self.y_rec_ - self.y_ref_, color="b", linewidth = 2, linestyle='-')
+        ax.plot(self.x_, np.log10(np.abs(self.y_rec_ - self.y_ref_)), color="b", linewidth = 2, linestyle='-')
         plt.xlabel('x')
-        plt.ylabel("yrec - yref")
+        plt.ylabel("log10(yrec - yref)")
         # plt.xlim(-5, 5)
-        plt.legend()
+        # plt.legend()
         plt.grid(True)
         plt.show()
         return  
@@ -379,18 +398,18 @@ class Ch_:
         fig = plt.figure()
         ax = fig.add_subplot(111)
         ax.plot(
-            rx, self.coefs_,  
+            rx, np.log10(np.abs(self.coefs_)),  
             color="b", linewidth = 2, linestyle='-', marker = "o",
             label = label_coef
         )
         if self.sel_method_ == 2:
             ax.plot(
-                rx, self.coefs_2_,  
+                rx, np.log10(np.abs(self.coefs_2_)),  
                 color="r", linewidth = 2, linestyle=':', marker = "s",
                 label = "direct"
             )
         plt.xlabel('i')
-        plt.ylabel("coefs")
+        plt.ylabel("log10(coefs)")
         if self.sel_method_ == 2:
             plt.legend()
         plt.title("Computed Chebyschev coefs.")
@@ -429,8 +448,139 @@ class Ch_:
         return  
 
 
-
-
+    # --- Reproduce the function using sin(x)-grid ---
     def get_rec_y_sin_x(self): 
-        x = np.linspace(-1.0, 1.0, len(self.x_))
-        return self.rec_func_(np.sin(x), self.coefs_)    
+        x = np.linspace(-1, 1, self.Nx_)
+        return self.rec_func_(np.sin(x), self.coefs_)
+
+
+# **********************************************************************************************  
+# ********************************************************************************************** 
+    
+# -------------------------------------------------------------------------------
+def get_Cheb_roots(Nx_loc):
+    x_roots = np.zeros(Nx_loc)
+    for ii in range(Nx_loc):
+        x_roots[ii] = np.cos((2*ii + 1)*np.pi / (2.*Nx_loc))
+    x_roots = np.flip(x_roots)
+    return x_roots
+
+
+# -------------------------------------------------------------------------------
+def approx_by_series(y_ref, Nc_loc, parity):
+    def test_x(x, coefs):
+        res_pol = 0.
+        for i_coef in range(Nc_loc):
+            # res_pol += coefs[i_coef] * x**(i_coef)
+            res_pol += coefs[i_coef] * np.cos(x*(i_coef))
+        return res_pol
+    
+
+    def reprod_x(x, coefs):
+        Nx = len(x)
+        res_pol = np.zeros(Nx)
+        for ix in range(Nx):
+            res_pol[ix] = 0.
+            for i_coef in range(len(coefs)):
+                # res_pol[ix] += coefs[i_coef] * x[ix]**(i_coef)
+                res_pol[ix] += coefs[i_coef] * np.cos(x[ix]*(i_coef))
+        return res_pol
+    # -----------------------------------
+
+    def test_ch_even(x, coefs):
+        res_pol = 0.
+        for i_coef in range(Nc_loc):
+            res_pol += coefs[i_coef] * np.cos((2*i_coef) * np.arccos(x))
+        return res_pol
+    
+    def reprod_ch_even(x, coefs):
+        Nx = len(x)
+        res_pol = np.zeros(Nx)
+        for ix in range(Nx):
+            res_pol[ix] = 0.
+            for i_coef in range(len(coefs)):
+                res_pol[ix] += coefs[i_coef] * np.cos((2*i_coef) * np.arccos(x[ix]))
+        return res_pol
+    
+    def test_ch_odd(x, coefs):
+        res_pol = 0.
+        for i_coef in range(Nc_loc):
+            res_pol += coefs[i_coef] * np.cos((2*i_coef+1) * np.arccos(x))
+        return res_pol
+    
+    def reprod_ch_odd(x, coefs):
+        Nx = len(x)
+        res_pol = np.zeros(Nx)
+        for ix in range(Nx):
+            res_pol[ix] = 0.
+            for i_coef in range(len(coefs)):
+                res_pol[ix] += coefs[i_coef] * np.cos((2*i_coef+1) * np.arccos(x[ix]))
+        return res_pol
+
+    # -----------------------------------------------------------------------
+
+    # --- x-grid ---
+    x_roots = get_Cheb_roots(len(y_ref))
+
+    # --- choose the series ---
+    test_func, reprod_func = test_x, reprod_x
+
+    # if parity == 0:
+    #     test_func, reprod_func = test_ch_even, reprod_ch_even
+    # else:
+    #     test_func, reprod_func = test_ch_odd, reprod_ch_odd
+
+
+    # --- Find the approximation ---
+    coefs = cp.Variable(Nc_loc)
+    objective = cp.Minimize(cp.sum_squares(
+        test_func(x_roots, coefs) - y_ref
+    ))
+    prob = cp.Problem(objective)
+    result = prob.solve()
+
+    # --- reconstructed function ---
+    y_rec = reprod_func(x_roots, coefs.value)
+
+    max_abs_err = np.max(np.abs(y_rec - y_ref))
+    print("Number of coefficients:\t\t {:d}".format(Nc_loc))
+    print("max. abs. error: {:0.3e}".format(max_abs_err))
+
+    # --- Plot the reconstructed function ---
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.plot(x_roots, y_ref, color="b", linewidth = 2, linestyle='-', label = "ref")
+    ax.plot(x_roots, y_rec,  color="r", linewidth = 2, linestyle=':', label = "reco")
+    plt.xlabel('x')
+    plt.ylabel("y")
+    # plt.xlim(-5, 5)
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+    # --- Plot the errors ---
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.plot(
+        x_roots, 
+        np.log10(np.abs(y_rec - y_ref)), 
+        color="b", linewidth = 2, linestyle='-'
+    )
+    plt.xlabel('x')
+    plt.ylabel("log10(yrec - yref)")
+    plt.grid(True)
+    plt.show()
+
+    # --- Plot the coefficients ---
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.plot(
+        range(Nc_loc), np.log10(np.abs(coefs.value)), 
+        color="b", linewidth = 2, linestyle='-', marker = "o"
+    )
+    plt.xlabel('i')
+    plt.ylabel("log10(coefs)")
+    plt.grid(True)
+    plt.show()
+
+    return y_rec, coefs.value
