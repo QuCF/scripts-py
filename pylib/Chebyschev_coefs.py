@@ -79,6 +79,10 @@ class Ch_:
     sel_method_ = 0
 
 
+    # absolute errors in the reconstructed signal:
+    log_err_ = None
+
+
     # sel_method = 0: use the minimization procedure to compute the coefficients.
     # sel_method = 1: use the direct computation.
     # sel_method = 2: use both methods.
@@ -370,9 +374,16 @@ class Ch_:
 
     # --- Plot errors --- 
     def plot_errors(self):
+        self.log_err_ = np.zeros(len(self.y_rec_))
+        for ii in range(len(self.y_rec_)):
+            err1 = np.abs(self.y_rec_[ii] - self.y_ref_[ii])
+            if err1 < 1e-17:
+                err1 = 1e-17
+            self.log_err_[ii] = np.log10(err1)
+
         fig = plt.figure()
         ax = fig.add_subplot(111)
-        ax.plot(self.x_, np.log10(np.abs(self.y_rec_ - self.y_ref_)), color="b", linewidth = 2, linestyle='-')
+        ax.plot(self.x_, self.log_err_, color="b", linewidth = 2, linestyle='-')
         plt.xlabel('x')
         plt.ylabel("log10(yrec - yref)")
         # plt.xlim(-5, 5)

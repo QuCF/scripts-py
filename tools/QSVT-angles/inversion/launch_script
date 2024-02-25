@@ -1,0 +1,9 @@
+
+for NN in 100 120 150 200 300
+do
+    cp ./"calc_inv_REF.ca" ./"calc_inv.ca"
+    sed -i "s/coefs\/inversion_60.000000_6/coefs\/inversion_$NN.000000_8/g"  ./"calc_inv.ca"
+    sed -i "s/ref-angles-4\/k60_eps6/ref-angles-5\/k$NN\_eps8/g"  ./"calc_inv.ca"
+    $qucf_angles calc_inv 
+done
+

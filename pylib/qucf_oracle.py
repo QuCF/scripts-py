@@ -4,6 +4,9 @@ import h5py
 import matplotlib.pyplot as plt
 import sys
 import cmath
+from numba import jit
+from termcolor import colored
+
 import pylib.mix as mix
 import pylib.qucf_structures as qucf_str
 
@@ -419,6 +422,9 @@ class Group__:
     #   the current group should be taken into account or not:
     flag_removed_ = None
 
+    # True: this is a small groupe and it is removed.
+    flag_small_ = None
+
     # where the corresponding gates gates should be inverted:
     flag_inverse_ = None
 
@@ -429,6 +435,7 @@ class Group__:
         self.irs_complement_ = np.array([], dtype=int)
         self.flag_removed_ = False
         self.flag_inverse_ = False
+        self.flag_small_ = False
         return
 
     def set_value(self, new_value):
@@ -613,32 +620,51 @@ class Group__:
 class SystemGates__:
     circ_ = None
     groups_ = None
-    __Nr_small_ = None
+    Nr_small_ = None
 
     # the parameter indicates how many qubits in input qubits (from all input registers) 
     #   should be investigated to split a group:
     n_split_ = 1
 
     # used in reconstruct_matrix_using_GRID;
-    # grid_values_[i-section][i-row] = [first-group, second-group, ...];
-    # if len(grid_values_[i-section][i-row]) > 1, a correcting gate is required 
-    #   at the row with the index i-row in the section with the index i-section;
+    # grid_values_[is][ir] = [first-group, second-group, ...];
+    # if len(grid_values_[is][ir]) > 1, a correcting gate is required 
+    #   at the ir-th row in the is-th section.
     grid_values_ = None
     
+
+    # ---------------------------------------------------------------------------------------------------------------
     def __init__(self, circ, groups):
         self.circ_ = circ
         self.groups_ = groups
-        self.__Nr_small_ = 4
+        self.Nr_small_ = 4
         return
     
+
+    # ---------------------------------------------------------------------------------------------------------------
     def set_rows_limit_for_non_extension(self, Nr_non_ext):
-        self.__Nr_small_ = Nr_non_ext
+        self.Nr_small_ = Nr_non_ext
+        return
+    
+
+    # ---------------------------------------------------------------------------------------------------------------
+    def add_groups(self, sys_gates):
+        for i_section in range(self.circ_.N_sections_):
+            one_section_new  = sys_gates.groups_[i_section]
+            if one_section_new is None:
+                continue
+            one_section_curr = self.groups_[i_section]
+
+            N_groups = len(one_section_new)
+            for ii in range(N_groups):
+                one_section_curr.append(one_section_new[ii])
         return
 
     
+    # ---------------------------------------------------------------------------------------------------------------
     # Consider only the core of each group to reconstruct the matrix;
     # can be applied only before launching 
-    # the functions SystemGates__.merge_groups and SystemGates__.correct_groups.
+    # the functions SystemGates__.merge_groups and SystemGates__.form_grid_groups.
     def reconstruct_matrix_using_GROUPS(self):    
         N = 1 << self.circ_.input_regs_.nq_
         N_sections = len(self.groups_) # nonsparsity
@@ -669,8 +695,8 @@ class SystemGates__:
         return A_recon
     
 
-
-    # should be called after SystemGates__.correct_groups;
+    # ---------------------------------------------------------------------------------------------------------------
+    # should be called after SystemGates__.form_grid_groups;
     # Consider extended and correcting gates to reconstruct the matrix;
     def reconstruct_matrix_using_GRID(self): 
         N = 1 << self.circ_.input_regs_.nq_
@@ -679,7 +705,7 @@ class SystemGates__:
         D_sections_columns = np.zeros((N_sections, N), dtype=int);     D_sections_columns.fill(np.nan)
         D_sections_values  = np.zeros((N_sections, N), dtype=complex); D_sections_values.fill(np.nan)
         for i_section in range(N_sections):
-            one_grid = self.grid_values_[i_section]
+            one_grid = self.grid_values_[i_section] # get a single diagonal;
             if not one_grid:
                 continue 
             anc_integers = self.circ_.get_anc_integers_from_section_index(i_section)
@@ -704,6 +730,7 @@ class SystemGates__:
         return A_recon
     
 
+    # ---------------------------------------------------------------------------------------------------------------
     def count_groups(self):
         # print("N = {:d}".format(1 << self.circ_.input_regs_.nq_))
         counter_groups = 0
@@ -715,10 +742,30 @@ class SystemGates__:
                 if not one_group.flag_removed_:
                     counter_groups += 1
         print("Number of groups: {:d}".format(counter_groups))
-        print()
-        return
+        return counter_groups
     
 
+    # ---------------------------------------------------------------------------------------------------------------
+    def count_small_large_groups(self):
+        N_large = 0
+        N_small = 0
+        for i_section in range(self.circ_.N_sections_):
+            one_section = self.groups_[i_section]
+            if one_section is None:
+                continue
+            for one_group in one_section:
+                if not one_group.flag_removed_:
+                    if one_group.flag_small_:
+                        N_small += 1
+                    else:
+                        N_large += 1
+        print("Number of small groups: {:d}".format(N_small))
+        print("Number of large groups: {:d}".format(N_large))
+        return
+
+
+
+    # ---------------------------------------------------------------------------------------------------------------
     # Assume that gates act on a target ancilla qubit called "ae";
     def construct_circuit_OH(self, path, filename):
         file_lines = []
@@ -780,6 +827,7 @@ class SystemGates__:
         return
     
 
+    # ---------------------------------------------------------------------------------------------------------------
     # sorted_groups[i-section][i-group] = SortedGroup__: 
     # for each register, groups are sorted from the largest to the smallest;
     def sort_groups(self):
@@ -806,6 +854,7 @@ class SystemGates__:
         return
 
 
+    # ---------------------------------------------------------------------------------------------------------------
     # extend groups in each section:
     def extend_sorted_groups(self, B_fixed):
         N = 1 << self.circ_.input_regs_.nq_
@@ -854,7 +903,7 @@ class SystemGates__:
                 N_rows = len(one_group.irs_)
                 flag_ext = False
                 reg_control_qubits = [None] * N_regs
-                if N_rows > self.__Nr_small_: # if the group size is larger of the imposed threshold;
+                if N_rows > self.Nr_small_: # if the group size is larger of the imposed threshold;
                     counter_ext_group += 1
                     flag_ext = True
                     matrices_bs_regs = [None] * N_regs
@@ -888,6 +937,8 @@ class SystemGates__:
                                 counter_qubit += 1
                                 if counter_qubit == self.circ_.input_regs_.nqs_[i_reg]:
                                     break
+                else:
+                    one_group.flag_small_ = True
                 one_group.flag_extended_    = flag_ext
                 one_group.control_reg_bits_ = reg_control_qubits if flag_ext else None
 
@@ -916,6 +967,7 @@ class SystemGates__:
         return 
 
 
+    # ---------------------------------------------------------------------------------------------------------------
     # -> During a single launch of the function, each group can remain the same or be split.
     #   A group can be split only once during a single launch of the function.
     # -> To split groups once again, launch the function again.
@@ -969,6 +1021,7 @@ class SystemGates__:
         return  
     
     
+    # ---------------------------------------------------------------------------------------------------------------
     # Use the function after the function "extend_sorted_groups" has been launched.
     # Merge groups that have the same values and where one group overlaps the other one completely***
     # Assume that an extended group Gext overlaps with a group Go, and assume that
@@ -1028,6 +1081,7 @@ class SystemGates__:
         return
 
 
+    # ---------------------------------------------------------------------------------------------------------------
     def correct_close_groups(self):
         calc_angles = lambda value_goal, init_vec: mix.find_correcting_angles_for_Rc_FLOAT(
             value_goal, init_vec, self.circ_.prec_
@@ -1044,11 +1098,11 @@ class SystemGates__:
             for i_group in range(N_groups):
                 one_group = one_section[i_group]
 
-                # skip if the group has been removed previously have a zero-size complement: 
+                # skip if the group has been removed previously or has a zero-size complement: 
                 if one_group.flag_removed_ or (len(one_group.irs_complement_) == 0):
                     continue
 
-                # check whether the group overlaps with other non-larger groups:
+                # check whether the group overlaps with other non-large groups:
                 for other_group in one_section[i_group+1:]:
 
                     # consider only extended groups
@@ -1062,7 +1116,7 @@ class SystemGates__:
                         if ir_check in one_group.irs_complement_:
                             counter_intersection += 1
 
-                    if counter_intersection > self.__Nr_small_:
+                    if counter_intersection > self.Nr_small_:
                         # if the overlapping between the groups is large enough, then 
                         # correct the group so that the combined action of two groups
                         # would produce a correct matrix element's value:
@@ -1073,13 +1127,95 @@ class SystemGates__:
                         # if the computation of angles is successful, correct the other group:
                         if ay_c is not None:
                             other_group.set_angles(ay_c, az_c)
-                            xx = 0
         return
+    
+
+    # ------------------------------------------------------------------------------------------------------------
+    def remove_small_groups(self):
+        for i_section in range(self.circ_.N_sections_):
+            one_section = self.groups_[i_section]
+            if one_section is None:
+                continue
+            for i_group in range(len(one_section)):
+                one_group = one_section[i_group]
+                if one_group.flag_small_:
+                    one_group.flag_removed_ = True
+        return
+    
+
+    # ------------------------------------------------------------------------------------------------------------
+    def form_corr_matrices(self, A_target):
+        calc_angles = lambda value_goal, init_vec: mix.find_correcting_angles_for_Rc_FLOAT(
+            value_goal, init_vec, self.circ_.prec_
+        )
+        # -----------------------------------------------
+        Nr = 1 << self.circ_.input_regs_.nq_
+        
+        Ca = np.zeros((Nr, Nr), dtype=complex) # the matrix with correcting angles
+        Cv = np.zeros((Nr, Nr), dtype=complex) # the matrix with the equivalent value 
+            # (to avoid te uncertainty due to the periodicity of angles).
+
+        N_secs = self.circ_.N_sections_
+        for i_section in range(N_secs):
+            one_section = self.groups_[i_section]
+            if one_section is None:
+                continue
+            anc_integers = self.circ_.get_anc_integers_from_section_index(i_section)
+            one_grid = [None] * Nr 
+
+            # *** Sort all complements according to their positions ***
+            for one_group in one_section: 
+                if one_group.flag_removed_:
+                    continue
+                irs_work = one_group.give_full_irs()
+                for ir in irs_work:
+                    if one_grid[ir] is None:
+                        one_grid[ir] = [one_group]
+                    else:
+                        one_grid[ir].append(one_group)
+                    
+            # *** Compute the matrix from groups***
+            A_reco = np.zeros(Nr, dtype=complex)
+            Ov = np.zeros((Nr, 2), dtype=complex) # obtain states after the action of groups;
+            for irow in range(Nr):
+                if one_grid[irow] is None:
+                    continue 
+                groups_on_row = one_grid[irow]
+                Ov[irow]    = mix.action_of_RyRc_gates(groups_on_row)
+                A_reco[irow] = Ov[irow, 0]
+
+            for irow in range(Nr):
+                if np.abs(A_reco[irow]) == 0:
+                    continue
+
+                ic = self.circ_.get_column_index_from_anc_integers(
+                    anc_integers, 
+                    self.circ_.compute_integers_in_input_registers(irow)
+                )
+                required_value = A_target.get_matrix_element(irow, ic)
+                if mix.compare_complex_values(A_reco[irow], required_value, self.circ_.prec_):
+                    continue
+                if np.abs(A_reco[irow]) > 0:
+                    ay_c, az_c = calc_angles(required_value, Ov[irow])
+                    if ay_c is None:
+                        line_print = colored(
+                            "B_corr[{:d}, {:d}] = None".format(irow, ic), 
+                            'red', attrs=['reverse', 'blink']
+                        )
+                        print(line_print)
+                else:
+                    ay_c, az_c = mix.calc_angles_from_a_value(required_value)
+                Ca[irow, ic] = ay_c + 1j * az_c
+                Cv[irow, ic] = mix.Rc(ay_c, az_c)[0, 0]
+        return Ca, Cv
 
 
-    # In each row where several groups act (due to the extension), 
-    # add one or several correcting groups to adjust the value at this row.
-    def correct_groups(self, B_fixed):
+    # ------------------------------------------------------------------------------------------------------------
+    # Comment: this is the former correct_groups function.
+    # ---
+    # For a grid of sections where each section is with Nr rows.
+    # One or several rows act at each row.
+    def form_grid_groups(self, B_fixed):
         # --- FUNCTION: add a new group ---
         def add_a_group(
                 one_section, counter_row, counter_value, 
@@ -1095,12 +1231,14 @@ class SystemGates__:
             new_group.irs_ = [counter_row]
             if flag_inverse:
                 new_group.invert_gate()
-            one_section.append(new_group)
+
+            one_section.append(new_group) # ncessary to correctly count the number of groups;
+
             if counter_value == id_special:
                 if last_group.flag_extended_:
                     groups_on_row.append(new_group)
                 else:
-                    # if a non-extended group, remove this row from the last group:
+                    # if the last group is a non-extended group, remove this row from this last group:
                     last_group.irs_ = np.delete(
                         last_group.irs_, 
                         np.where(last_group.irs_ == counter_row)
@@ -1110,9 +1248,6 @@ class SystemGates__:
                 groups_on_row.append(new_group)
             return
         # -----------------------------------------------
-        # calc_angles = lambda value_goal, init_vec: mix.find_correcting_angles_for_Rc(
-        #     value_goal, init_vec, self.circ_.prec_
-        # )
         calc_angles = lambda value_goal, init_vec: mix.find_correcting_angles_for_Rc_FLOAT(
             value_goal, init_vec, self.circ_.prec_
         )
@@ -1143,7 +1278,7 @@ class SystemGates__:
                     else:
                         one_grid[ir].append(one_group)
                     
-            # *** Find correcting groups for each overlapped element ***
+            # *** Find groups to correct overlapped elements ***
             for counter_row in range(Nr):
                 if one_grid[counter_row] is None:
                     continue # some grids are not completely filled;
@@ -1175,6 +1310,13 @@ class SystemGates__:
                 # try to compute angles for a correcting group:
                 ay_c, az_c = calc_angles(required_value, obtained_vec)
 
+                if ay_c is None:
+                    line_print = colored(
+                        "<<< Error: angles are not computed. >>>", 
+                        'red', attrs=['reverse', 'blink']
+                    )
+                    print(line_print)
+
                 # if the computation of the angles fails, keep adding groups 
                 # to reverse action of previous groups 
                 # either until the computation is successful
@@ -1198,8 +1340,7 @@ class SystemGates__:
                     # otherwise, try again to compute angles for a correcting gate:
                     obtained_vec = mix.action_of_RyRc_gates(groups_on_row)
                     ay_c, az_c = calc_angles(required_value, obtained_vec)
- 
-                
+
                 if counter_value < Nc_comp:
                     # if not all groups are reversed on the row, add a correcting gate:
                     add_a_group(
@@ -1219,14 +1360,14 @@ class SystemGates__:
 
             # *** Save the grid ***
             self.grid_values_[i_section] = one_grid
-        return
-
-
+        return 
+    
 
 # -------------------------------------------------------------------------------------------------
 # --- Functions ---
 # -------------------------------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------------------------------------
 # B_fixed = A/D;
 # grid_sections[i-section][ir] = value-of-matrix-element
 # Sections are equivalent to diagonals or columns 
@@ -1252,6 +1393,7 @@ def create_grid_of_sections(circ, B_fixed):
     return grid_sections
 
 
+# ---------------------------------------------------------------------------------------------------------
 # OPTION 1: within a section, put all rows where 
 # matrix elements have the same values into the same group:
 # OUTPUT: groups_R[i-section][i-group] = Group__(value);
@@ -1305,91 +1447,60 @@ def create_groups(circ, grid_sections):
     return groups_R
 
 
+# ---------------------------------------------------------------------------------------------------------
 # OPTION 2:
 # Each group consists only of neighbor rows.
-# E.g. consider two rows with indicies j and k:
+# E.g. consider two rows with indices j and k:
 #    j -> |j_reg1>|j_reg2>, 
 #    k -> |k_reg1>|k_reg2>.
 # The rows j and k are considered neighbor if 
 #   |j_reg1 - k_reg1| <= 1 AND |j_reg2 - k_reg2| <= 1.
 # OUTPUT: groups_R[i-section][i-group] = Group__(value);
-def create_groups_neighbor(circ, grid_sections):
-    # ------------------------------------------------------------------------
-    def find_group(vv, irs_cond_group, dict_values, one_section):
-        is_new_group = True
-        res_id_prev_group = None
-        keyword = circ.get_key(vv)
-        if keyword not in dict_values:
-            is_new_group = True
-        else:
-            for id_prev_group in range(len(dict_values[keyword])):
-                prev_group = one_section[ dict_values[keyword][id_prev_group] ]
-
-                # Option 2: compare all elements with all elements from the both groups
-                # Option 2.1: consider the last N_rows elements in the previous group:
-                N_cond_rows = len(irs_cond_group)
-                N_prev_rows = len(prev_group.irs_)
-
-                N_min = np.min([N_cond_rows, N_prev_rows])
-
-                # if N_cond_rows > N_prev_rows:
-                #     continue
-
-                is_neighbor = True
-                for counter_row in range(N_min):
-                    ir_cond = irs_cond_group[N_cond_rows - counter_row - 1]
-                    ir_prev = prev_group.irs_[N_prev_rows - counter_row - 1]
-                    ints_cond = circ.compute_integers_in_input_registers(ir_cond)
-                    ints_prev = circ.compute_integers_in_input_registers(ir_prev)
-                    for ireg in range(N_regs):
-                        if np.abs(ints_cond[ireg] - ints_prev[ireg]) > 1:
-                            is_neighbor = False
-                            break
-                    if not is_neighbor:
-                        break
-
-                if is_neighbor:
-                    is_new_group = False
-                    res_id_prev_group = id_prev_group
-
-                    # a group can be neighbor with several previous groups;
-                    # here, we consider only the first encountered neighbor group:
-                    break
-        return is_new_group, keyword, res_id_prev_group
-
-    # ---
+# ---
+# flag_angles = True: a special case when grid_sections contains values which are
+# vv = angle_y + 1j * angle_z.
+def create_groups_neighbor(
+        circ, grid_sections,  
+        sel_neighbor = 0, supp_matrix = None
+    ):
     groups_R = [None] * circ.N_sections_
     N = 1 << circ.input_regs_.nq_
-    N_regs = circ.input_regs_.N_regs_
+    find_group = None
+    if sel_neighbor == 0:
+        find_group = lambda v, irs, dgr, osec: find_group_opt1(circ, v, irs, dgr, osec)
+    if sel_neighbor == 1:
+        find_group = lambda v, irs, dgr, osec: find_group_opt2(circ, v, irs, dgr, osec)
+
     for i_section in range(circ.N_sections_):
         section_one = grid_sections[i_section]
         if all(np.isnan(section_one)): # empty section
             continue
         groups_R[i_section] = []
+        anc_integers = circ.get_anc_integers_from_section_index(i_section)
 
         # a counter to iterate over each non-None row in the section;
         ir = np.where(np.isnan(section_one) == False)[0][0]
 
-        dict_values = {} # to find a group using its unique angle;
+        dict_values = {} # to find a group using its unique value;
         counter_groups = -1 # to count the number of groups in the given section;
 
         # Each group is associated with a single value:
         curr_vv = section_one[ir]
         while ir < N:
             ir_start = ir
-            vv = curr_vv # next angle  
+            vv = curr_vv 
 
-            # --- * Find rows where the group sits on ---
-            while mix.compare_complex_values(vv, curr_vv, circ.prec_): # compare with a predefined precision?
+            # --- Find rows where the group sits on ---
+            while mix.compare_complex_values(vv, curr_vv, circ.prec_): 
                 ir += 1
                 if ir == N:
                     break
                 curr_vv = section_one[ir]
             array_rows = np.array(range(ir_start, ir))
 
-            # --- Save a new group or merge it with one of previous groups ---
+            # --- Save a new group or merge it with a previously saved one ---
             flag_new_group, keyword, id_prev_group = find_group(
-                vv, array_rows, dict_values, groups_R[i_section]
+                vv, array_rows, dict_values, groups_R[i_section],
             )
             if flag_new_group:
                 counter_groups += 1
@@ -1398,6 +1509,13 @@ def create_groups_neighbor(circ, grid_sections):
                 else:
                     dict_values[keyword].append(counter_groups)
                 oo_group = Group__(vv)
+                if supp_matrix is not None:
+                    ic = circ.get_column_index_from_anc_integers(
+                        anc_integers, 
+                        circ.compute_integers_in_input_registers(ir_start)
+                    )
+                    va = supp_matrix.get_matrix_element(ir_start, ic)
+                    oo_group.set_angles(va.real, va.imag)
                 oo_group.irs_ = array_rows
                 groups_R[i_section].append(oo_group)
             else:
@@ -1415,8 +1533,142 @@ def create_groups_neighbor(circ, grid_sections):
                 if ir >= N:
                     break
                 curr_vv = section_one[ir]
-        xx = 0
     return groups_R
+
+
+# ---------------------------------------------------------------------------------------------------------
+def find_group_opt1(circ, vv, irs_cond_group, dict_values, one_section):
+    N_regs = circ.input_regs_.N_regs_
+    is_new_group = True
+    res_id_prev_group = None
+    keyword = circ.get_key(vv)
+    if keyword not in dict_values:
+        is_new_group = True
+    else:
+        for id_prev_group in range(len(dict_values[keyword])):
+            prev_group = one_section[ dict_values[keyword][id_prev_group] ]
+            N_cond_rows = len(irs_cond_group)
+            N_prev_rows = len(prev_group.irs_)
+            N_min = np.min([N_cond_rows, N_prev_rows])
+            is_neighbor = True
+            for counter_row in range(N_min):
+                ir_cond = irs_cond_group[N_cond_rows - counter_row - 1]
+                ir_prev = prev_group.irs_[N_prev_rows - counter_row - 1]
+
+                ints_cond = circ.compute_integers_in_input_registers(ir_cond)
+                ints_prev = circ.compute_integers_in_input_registers(ir_prev)
+                for ireg in range(N_regs):
+                    if np.abs(ints_cond[ireg] - ints_prev[ireg]) > 1:
+                        is_neighbor = False
+                        break
+                if not is_neighbor:
+                    break
+
+            if is_neighbor:
+                is_new_group = False
+                res_id_prev_group = id_prev_group
+
+                # a group can be neighbor with several previous groups;
+                # here, we consider only the first encountered neighbor group:
+                break
+    return is_new_group, keyword, res_id_prev_group
+
+
+# ---------------------------------------------------------------------------------------------------------
+def find_group_opt2(circ, vv, irs_cond_group, dict_values, one_section):
+    N_regs = circ.input_regs_.N_regs_
+    is_new_group = True
+    res_id_prev_group = None
+    keyword = circ.get_key(vv)
+
+    N_counter_nei = 2
+
+    if keyword not in dict_values:
+        is_new_group = True
+    else:
+        counter_prev_nei = 0
+        N_prev = len(dict_values[keyword])
+        for id_prev_group in range(N_prev):
+            prev_group = one_section[ dict_values[keyword][id_prev_group] ]
+            N_cond_rows = len(irs_cond_group)
+            N_prev_rows = len(prev_group.irs_)
+            N_min = np.min([N_cond_rows, N_prev_rows])
+            is_neighbor = True
+            for counter_row in range(N_min):
+                ir_cond = irs_cond_group[N_cond_rows - counter_row - 1]
+                ir_prev = prev_group.irs_[N_prev_rows - counter_row - 1]
+
+                ints_cond = circ.compute_integers_in_input_registers(ir_cond)
+                ints_prev = circ.compute_integers_in_input_registers(ir_prev)
+                for ireg in range(N_regs):
+                    if np.abs(ints_cond[ireg] - ints_prev[ireg]) > 1:
+                        is_neighbor = False
+                        break
+                if not is_neighbor:
+                    break
+
+            if is_neighbor:
+                is_new_group = False
+                res_id_prev_group = id_prev_group
+
+                counter_prev_nei += 1
+                if counter_prev_nei == N_counter_nei:
+                    # take the N_counter_nei-th neighbor group.
+                    break
+    return is_new_group, keyword, res_id_prev_group
+
+
+# # ---------------------------------------------------------------------------------------------------------
+# def find_group_Allneighbor(circ, vv, irs_cond_group, dict_values, one_section):
+#     N_regs = circ.input_regs_.N_regs_
+#     is_new_group = True
+#     res_id_prev_group = None
+#     keyword = circ.get_key(vv)
+#     if keyword not in dict_values:
+#         is_new_group = True
+#     else:
+#         Nprevs = len(dict_values[keyword])
+#         Nmin_max = 0
+#         for id_prev_group in range(Nprevs):
+#             prev_group = one_section[ dict_values[keyword][id_prev_group] ]
+#             N_cond_rows = len(irs_cond_group)
+#             N_prev_rows = len(prev_group.irs_)
+#             N_min = np.min([N_cond_rows, N_prev_rows])
+#             is_neighbor = True
+#             for counter_row in range(N_min):
+#                 # *** Consider the LAST N_rows elements in the previous group ***
+#                 ir_cond = irs_cond_group[N_cond_rows - counter_row - 1]
+#                 ir_prev = prev_group.irs_[N_prev_rows - counter_row - 1]
+
+#                 ints_cond = circ.compute_integers_in_input_registers(ir_cond)
+#                 ints_prev = circ.compute_integers_in_input_registers(ir_prev)
+#                 for ireg in range(N_regs):
+#                     if np.abs(ints_cond[ireg] - ints_prev[ireg]) > 1:
+#                         is_neighbor = False
+#                         break
+#                 if not is_neighbor:
+#                     break
+#             if N_min > Nmin_max:
+#                 res_id_prev_group = id_prev_group
+
+
+#         # a group can be neighbor with several previous groups;
+#         # here, take the group with the maximum number of similar rows:
+#         if res_id_prev_group is not None:
+#             is_new_group = False
+#     return is_new_group, keyword, res_id_prev_group
+
+
+# ---------------------------------------------------------------------------------------------------------
+# --- Find a matrix for the next iteration ---
+@jit(nopython=True)
+def construct_matrix_next_iteration(A_orig, dA, A_next, prec=1e-6):
+    N = A_orig.shape[0]
+    for ir in range(N):
+        for ic in range(N):
+            if np.abs(dA[ir, ic]) > prec:
+                A_next[ir, ic] = A_orig[ir, ic]
+    return A_next
 
 
 
