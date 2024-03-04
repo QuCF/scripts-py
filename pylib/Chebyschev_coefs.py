@@ -182,8 +182,10 @@ class Ch_:
             self, id_func, par_in, 
             profile_in = None, 
             name_prof = None,
-            parity_in = None, path_root_in = None,
-            series_coefs = None
+            parity_in = None, 
+            path_root_in = None,
+            series_coefs = None,
+            x_grid = None
     ):
         self.par_ = par_in
         self.id_fun_ = id_func
@@ -195,6 +197,8 @@ class Ch_:
             self.parity_ = parity_in
             self.line_f_ = name_prof
             self.line_par_ = ""
+            if x_grid is not None:
+                self.x_ = np.array(x_grid)
 
         if self.id_fun_ == 0:
             self.path_root_ ="./tools/QSVT-angles/xG/coefs/"
@@ -280,7 +284,8 @@ class Ch_:
             self.Nx_ = len(self.y_ref_)
 
         # x-grid: Chebyschev roots:
-        self.x_ = get_Cheb_roots(self.Nx_)    
+        if self.x_ is None:
+            self.x_ = get_Cheb_roots(self.Nx_)    
 
         # - Evaluate the chosen function -
         if self.id_fun_ >= 0:
@@ -460,9 +465,15 @@ class Ch_:
 
 
     # --- Reproduce the function using sin(x)-grid ---
-    def get_rec_y_sin_x(self): 
-        x = np.linspace(-1, 1, self.Nx_)
+    def get_rec_y_sin_x(self, x = None): 
+        if x is None:
+            x = np.linspace(-1, 1, self.Nx_)
         return self.rec_func_(np.sin(x), self.coefs_)
+    
+    def get_rec_y_x(self, x = None): 
+        if x is None:
+            x = np.linspace(-1, 1, self.Nx_)
+        return self.rec_func_(x, self.coefs_)
 
 
 # **********************************************************************************************  

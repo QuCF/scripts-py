@@ -173,7 +173,7 @@ class ASE_:
 def preliminary_parameters_for_submatrices(oo_ase):
     Nx = oo_ase.Nx_work_
     Nv = oo_ase.Nv_work_
-    # Nvh = oo_ase.Nv_work_//2
+    Nvh = oo_ase.Nv_work_//2
     N = Nx*Nv
 
     # *** normalized v-grid ***
@@ -186,12 +186,14 @@ def preliminary_parameters_for_submatrices(oo_ase):
     # print("S: v-bulk: {:20.3e}".format(v_bulk_S))
     # print("S: v-edge: {:20.3e}".format(v_edge_S))
 
-    coef_ratio = oo_ase.Nv_work_/(oo_ase.Nv_work_ - 1)
-    # coef_ratio_2 = Nvh / (Nvh - 1)
+    coef_ratio = Nv/(Nv - 1)
+    coef_ratio_2 = Nvh / (2.*(Nvh - 1))
 
-    print("nx: {:d}".format(oo_ase.nx_work_))
-    print("nv: {:d}".format(oo_ase.nv_work_))
-    # print("Nvh: {:d}".format(Nvh))
+    print("nx {:d}".format(oo_ase.nx_work_))
+    print("nv {:d}".format(oo_ase.nv_work_))
+    print("Nvhm1 {:d}".format(Nvh-1))
+    print("Nxm2 {:d}".format(Nx-2))
+    print("Nxm4 {:d}".format(Nx-4))
     
     # --- Submatrix Cf ---
     # v-profile: assume that v << 1:
@@ -199,10 +201,9 @@ def preliminary_parameters_for_submatrices(oo_ase):
     alpha_0 = - v_norm_max
     alpha_1 = v_norm_max * coef_ratio
     print()
-    print("\n//--- Parameters for the submatrix Cf ---")
+    print("//--- Parameters for the submatrix Cf ---")
     print("alpha_0_cf \t{:0.12e}".format(alpha_0))
     print("alpha_1_cf \t{:0.12e}".format(alpha_1))
-
 
     # --- Submatrix CE ---
     alpha_0 = - 1.0
@@ -221,45 +222,214 @@ def preliminary_parameters_for_submatrices(oo_ase):
     print("angle_se \t{:0.12f}".format(angle_se))
 
     # --- Submatrix F: profiles ---
+    
+
+    # - Left blocks FB1 -
     shift_x = Nx//2 * Nv
-
-    # # right blocks FB1:
-    # v1 = oo_ase.BF_prof_.get_matrix_element(
-    #     shift_x, Nv + shift_x
-    # )
-    # alpha_0_RFB1 = -np.abs(v1)
-    # alpha_1_RFB1 = np.abs(v1) * coef_ratio
-
-    # left blocks FB1,
     v1 = oo_ase.BF_prof_.get_matrix_element(
         shift_x, shift_x - Nv
     )
     alpha_0_LFB1 = - np.abs(v1)
     alpha_1_LFB1 = np.abs(v1) * coef_ratio
 
-    # # block FL1:
-    # # use minus for the block FR1:
-    # v1 = oo_ase.BF_prof_.get_matrix_element(0, Nv)
-    # alpha_0_FL1 = - np.abs(v1)
-    # alpha_1_FL1 = np.abs(v1) * coef_ratio
+    # corrections:
+    shift_x = 3 * Nv
+    v1 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x - Nv)
+    shift_x = 3 * Nv + (Nvh-1)
+    v2 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x - Nv)
+    alpha_0_LFB1_corr1 = - np.abs(v1)
+    alpha_1_LFB1_corr1 = np.abs(v2 - v1) * coef_ratio_2
 
-    # block FL2:
+    shift_x = 3 * Nv + Nvh
+    v1 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x - Nv)
+    shift_x = 3 * Nv + (Nv-1)
+    v2 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x - Nv)
+    alpha_0_LFB1_corr1_2 = np.abs(v1)
+    alpha_1_LFB1_corr1_2 = np.abs(v2 - v1) * coef_ratio_2
+
+
+    shift_x = (Nx-2) * Nv
+    v1 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x - Nv)
+    shift_x = (Nx-2) * Nv + (Nvh-1)
+    v2 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x - Nv)
+    alpha_0_LFB1_corr2 = - np.abs(v1)
+    alpha_1_LFB1_corr2 = np.abs(v2 - v1) * coef_ratio_2
+
+    shift_x = (Nx-2) * Nv + Nvh
+    v1 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x - Nv)
+    shift_x = (Nx-2) * Nv + (Nv-1)
+    v2 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x - Nv)
+    alpha_0_LFB1_corr2_2 = -np.abs(v1)
+    alpha_1_LFB1_corr2_2 = -np.abs(v2 - v1) * coef_ratio_2
+
+    shift_x = (Nx-1) * Nv + Nvh
+    v1 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x - Nv)
+    shift_x = (Nx-1) * Nv + (Nv-1)
+    v2 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x - Nv)
+    alpha_0_LFB1_corr3 = np.abs(v1)
+    alpha_1_LFB1_corr3 = np.abs(v2 - v1) * coef_ratio_2
+
+    # - Right blocks FB1 -
+    shift_x = Nx//2 * Nv
+    v1 = oo_ase.BF_prof_.get_matrix_element(
+        shift_x, shift_x + Nv
+    )
+    alpha_0_RFB1 = np.abs(v1)
+    alpha_1_RFB1 = -np.abs(v1) * coef_ratio
+
+    # corrections:
+    shift_x = 0
+    v1 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x + Nv)
+    shift_x = 0 + (Nvh-1)
+    v2 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x + Nv)
+    alpha_0_RFB1_corr1 = np.abs(v1)
+    alpha_1_RFB1_corr1 = -np.abs(v2 - v1) * coef_ratio_2
+
+
+    shift_x = Nv
+    v1 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x + Nv)
+    shift_x = Nv + (Nvh-1)
+    v2 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x + Nv)
+    alpha_0_RFB1_corr2 = np.abs(v1)
+    alpha_1_RFB1_corr2 = -np.abs(v2 - v1) * coef_ratio_2
+
+    shift_x = Nv + Nvh
+    v1 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x + Nv)
+    shift_x = Nv + (Nv-1)
+    v2 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x + Nv)
+    alpha_0_RFB1_corr2_2 = -np.abs(v1) # its a negative real value
+    alpha_1_RFB1_corr2_2 = -np.abs(v2 - v1) * coef_ratio_2
+
+
+    shift_x = (Nx-4) * Nv
+    v1 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x + Nv)
+    shift_x = (Nx-4) * Nv + (Nvh-1)
+    v2 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x + Nv)
+    alpha_0_RFB1_corr3 = np.abs(v1) 
+    alpha_1_RFB1_corr3 = -np.abs(v2 - v1) * coef_ratio_2
+
+    shift_x = (Nx-4) * Nv + Nvh
+    v1 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x + Nv)
+    shift_x = (Nx-4) * Nv + (Nv-1)
+    v2 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x + Nv)
+    alpha_0_RFB1_corr3_2 = - np.abs(v1) 
+    alpha_1_RFB1_corr3_2 = - np.abs(v2 - v1) * coef_ratio_2
+
+
+    shift_x = (Nx-2) * Nv
+    v1 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x + Nv)
+    shift_x = (Nx-2) * Nv + (Nvh-1)
+    v2 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x + Nv)
+    alpha_0_RFB1_corr4 = np.abs(v1) 
+    alpha_1_RFB1_corr4 = -np.abs(v2 - v1) * coef_ratio_2
+
+    shift_x = (Nx-2) * Nv + Nvh
+    v1 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x + Nv)
+    shift_x = (Nx-2) * Nv + (Nv-1)
+    v2 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x + Nv)
+    alpha_0_RFB1_corr4_2 = -np.abs(v1) 
+    alpha_1_RFB1_corr4_2 = -np.abs(v2 - v1) * coef_ratio_2
+
+    # - Block FL2 -
     v1 = oo_ase.BF_prof_.get_matrix_element(0, 2*Nv)
     alpha_0_FL2 = - np.abs(v1)
     alpha_1_FL2 = np.abs(v1) * coef_ratio
 
-    # block FR2:
+    # - Block FR2 - 
     v1 = oo_ase.BF_prof_.get_matrix_element(N-1, N-2*Nv-1)
     alpha_0_FR2 = - np.abs(v1)
     alpha_1_FR2 = np.abs(v1) * coef_ratio
 
+    # - Main Diag --
+    coef_lcu = 2.
+
+    # * left edge *
+    # real sin
+    shift_x = Nvh-2
+    v1 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x)
+    shift_x = Nvh-1
+    v2 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x)
+
+    v_end = v2.real
+    dv = v_end - v1.real
+    v_start = v_end - dv * (Nvh-1)
+
+    a0_FB0_L = coef_lcu * v_start
+    a1_FB0_L = coef_lcu * (v_end - v_start) * coef_ratio_2
+
+    # imaginary part:
+    a0_FB0_iw_L = - coef_lcu * 2. * np.arcsin(v1.imag) 
+
+    # corrections:
+
+    # * right edge *
+    shift_x = (Nx-1) * Nv + Nvh
+    v1 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x)
+    shift_x = (Nx-1) * Nv + Nvh+1
+    v2 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x)
+
+    v_start = v1.real
+    dv = v2.real - v_start
+    v_end = v_start + dv * (Nvh - 1)
+
+    a0_FB0_R = coef_lcu * v_start
+    a1_FB0_R = coef_lcu * (v_end - v_start) * coef_ratio_2
+
+    # imaginary part:
+    a0_FB0_iw_R = - coef_lcu * 2. * np.arcsin(v1.imag) 
+
+
     print("\n//--- Parameters for the submatrix F-prof ---")
-    # print("alpha_0_RFB1 \t{:0.12f}".format(alpha_0_RFB1))
-    # print("alpha_1_RFB1 \t{:0.12f}".format(alpha_1_RFB1))
+    print("\n//- diag 0: left edge -")
+    print("a0_FB0_L \t{:0.12f}".format(a0_FB0_L))
+    print("a1_FB0_L \t{:0.12f}".format(a1_FB0_L))
+    print("a0_FB0_iw_L \t{:0.12f}".format(a0_FB0_iw_L))
+
+    print("\n//- diag 0: right edge -")
+    print("a0_FB0_R \t{:0.12f}".format(a0_FB0_R))
+    print("a1_FB0_R \t{:0.12f}".format(a1_FB0_R))
+    print("a0_FB0_iw_R \t{:0.12f}".format(a0_FB0_iw_R))
+
+    print("\n//- diag -1 -")
     print("alpha_0_LFB1 \t{:0.12f}".format(alpha_0_LFB1))
     print("alpha_1_LFB1 \t{:0.12f}".format(alpha_1_LFB1))
-    # print("alpha_0_FL1 \t{:0.12f}".format(alpha_0_FL1))
-    # print("alpha_1_FL1 \t{:0.12f}".format(alpha_1_FL1))
+    print()
+    print("alpha_0_LFB1_corr1 \t{:0.12e}".format(alpha_0_LFB1_corr1))
+    print("alpha_1_LFB1_corr1 \t{:0.12e}".format(alpha_1_LFB1_corr1))
+    print("alpha_0_LFB1_corr1_2 \t{:0.12e}".format(alpha_0_LFB1_corr1_2))
+    print("alpha_1_LFB1_corr1_2 \t{:0.12e}".format(alpha_1_LFB1_corr1_2))
+    print()
+    print("alpha_0_LFB1_corr2 \t{:0.12e}".format(alpha_0_LFB1_corr2))
+    print("alpha_1_LFB1_corr2 \t{:0.12e}".format(alpha_1_LFB1_corr2))
+    print("alpha_0_LFB1_corr2_2 \t{:0.12e}".format(alpha_0_LFB1_corr2_2))
+    print("alpha_1_LFB1_corr2_2 \t{:0.12e}".format(alpha_1_LFB1_corr2_2))
+    print()
+    print("alpha_0_LFB1_corr3 \t{:0.12e}".format(alpha_0_LFB1_corr3))
+    print("alpha_1_LFB1_corr3 \t{:0.12e}".format(alpha_1_LFB1_corr3))
+    print()
+    print("\n//- diag +1 -")
+    print("alpha_0_RFB1 \t{:0.12f}".format(alpha_0_RFB1))
+    print("alpha_1_RFB1 \t{:0.12f}".format(alpha_1_RFB1))
+    print()
+    print("alpha_0_RFB1_corr1 \t{:0.12e}".format(alpha_0_RFB1_corr1))
+    print("alpha_1_RFB1_corr1 \t{:0.12e}".format(alpha_1_RFB1_corr1))
+    print()
+    print("alpha_0_RFB1_corr2 \t{:0.12e}".format(alpha_0_RFB1_corr2))
+    print("alpha_1_RFB1_corr2 \t{:0.12e}".format(alpha_1_RFB1_corr2))
+    print("alpha_0_RFB1_corr2_2 \t{:0.12e}".format(alpha_0_RFB1_corr2_2))
+    print("alpha_1_RFB1_corr2_2 \t{:0.12e}".format(alpha_1_RFB1_corr2_2))
+    print()
+    print("alpha_0_RFB1_corr3 \t{:0.12e}".format(alpha_0_RFB1_corr3))
+    print("alpha_1_RFB1_corr3 \t{:0.12e}".format(alpha_1_RFB1_corr3))
+    print("alpha_0_RFB1_corr3_2 \t{:0.12e}".format(alpha_0_RFB1_corr3_2))
+    print("alpha_1_RFB1_corr3_2 \t{:0.12e}".format(alpha_1_RFB1_corr3_2))
+    print()
+    print("alpha_0_RFB1_corr4 \t{:0.12e}".format(alpha_0_RFB1_corr4))
+    print("alpha_1_RFB1_corr4 \t{:0.12e}".format(alpha_1_RFB1_corr4))
+    print("alpha_0_RFB1_corr4_2 \t{:0.12e}".format(alpha_0_RFB1_corr4_2))
+    print("alpha_1_RFB1_corr4_2 \t{:0.12e}".format(alpha_1_RFB1_corr4_2))
+    print()
+    print("\n//- diag +-2 -")
     print("alpha_0_FL2 \t{:0.12f}".format(alpha_0_FL2))
     print("alpha_1_FL2 \t{:0.12f}".format(alpha_1_FL2))
     print("alpha_0_FR2 \t{:0.12f}".format(alpha_0_FR2))
@@ -272,11 +442,15 @@ def preliminary_parameters_for_submatrices(oo_ase):
 
 # recheck the QuCF simulation of the submatrices:
 def recheck_QuCF_submatrices(oo_ase):
-    dd       = qucf_r.read_matrix_sparse(oo_ase.path_qc_, oo_ase.output_qucf_) 
+    dd = qucf_r.read_matrix_sparse(oo_ase.path_qc_, oo_ase.output_qucf_) 
 
     print("\n--- Cf: QuCF version vs original version ---")
     Cf_recon = dd["A"].get_slice(oo_ase.Nvar_work_, 0, oo_ase.Nvar_work_,)
     compare_reconstructed(Cf_recon, oo_ase.Cf_orig_)
+
+    print("\n--- CE: QuCF version vs original version ---")
+    CE_recon = dd["A"].get_slice(0, oo_ase.Nvar_work_, oo_ase.Nvar_work_,)
+    compare_reconstructed(CE_recon, oo_ase.CE_orig_)
 
     print("\n--- S: QuCF version vs original version ---")
     S_recon = dd["A"].get_slice(oo_ase.Nvar_work_, oo_ase.Nvar_work_, oo_ase.Nvar_work_)
@@ -503,7 +677,7 @@ def extract_fixed_profile_matrix_from_F(nx, nv, A_F, D_F):
     # *** Map the preliminary matrices to the sparse matrices ***
     if A_F.get_Nnz() != (Nnz_fixed + Nnz_profile):
         print("Error: incorrect splitting.")
-        exit(-1)
+        return
     B_sparse_fixed   = map_prel_to_sparse(Nnz_fixed,   B_prel_fixed,   1)
     B_sparse_profile = map_prel_to_sparse(Nnz_profile, B_prel_profile, Nv)
 

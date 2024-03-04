@@ -12,6 +12,8 @@ import pylib.mix as mix
 FIG_SIZE_W_ = 8
 FIG_SIZE_H_ = 6
 
+SEL_EST_NA_ = 1
+
    
 def reload():
     mix.reload_module(mix)
@@ -141,6 +143,23 @@ def read_ref_QSVT_angles(id_case = 0, Ncoefs = 40):
         ]  
         id_comp_ = 5
 
+    # -------------------------------------------------------------------------
+    if id_case == 7:  
+        path_root_ref = "./tools/QSVT-angles/inversion/ref-angles-5"
+        filenames = \
+        [
+            "k300_eps8.hdf5",  # id = 0
+            "k350_eps8.hdf5",  # id = 1
+            "k400_eps8.hdf5",  # id = 2
+            "k450_eps8.hdf5",  # id = 3
+            "k500_eps8.hdf5",  # id = 4
+            "k550_eps8.hdf5",  # id = 5
+            "k600_eps8.hdf5",  # id = 6
+            "k650_eps8.hdf5",  # id = 7
+            "k700_eps8.hdf5",  # id = 8
+        ]  
+        id_comp_ = 8
+
     # read the QSVT angles computed using the L-BFGS approach [Dong-21-DOI:10.1103/PhysRevA.103.042419]:
     dds_ = []
     for ii in range(len(filenames)):
@@ -261,7 +280,7 @@ def plot_max(dds, flag_save, path_save_plots):
 
 
 # ---------------------------------------------------------------------------------------------
-# --- Compute coefficients-envelop for various kappa ---
+# --- Compute coefficients-envelope for various kappa ---
 def compute_coefs_var_kappa(dds, Ncoefs):
     Nk = len(dds)
     kappas = np.zeros(Nk)
@@ -283,7 +302,7 @@ def compute_coefs_var_kappa(dds, Ncoefs):
 
 
 # ---------------------------------------------------------------------------------------------
-# --- Plot coefficients-envelop for various kappa ---
+# --- Plot coefficients-envelope for various kappa ---
 def plot_coefs_var_kappa(cns, cps, kappas, ids_ch_coef):
     def plot_one_coef(coefs_arr, str_coef):
         colors = ["b", "r", "g", "orange", "magenta", "black"]
@@ -316,7 +335,7 @@ def plot_coefs_var_kappa(cns, cps, kappas, ids_ch_coef):
 
 
 # ---------------------------------------------------------------------------------------------
-# --- Compute coefficients of series approximating coefs-envelop for various kappa ---
+# --- Compute coefficients of series approximating coefs-envelope for various kappa ---
 def test_func_FULL(x, a):
     res_pol = 0.
     Ncoefs = a.size
@@ -393,8 +412,8 @@ def compute_env_coefs_dependence_kappa(
     # --- by a sequence of Chebyschev coefficients ---
     ccns = np.zeros((Ncoefs, Ncoefs_coefs))
     ccps = np.zeros((Ncoefs, Ncoefs_coefs))
-    rfn = np.zeros((Ncoefs, Nk)) # reproduced coefs-neg-envelop for each kappa
-    rfp = np.zeros((Ncoefs, Nk)) # reproduced coefs-pos-envelop for each kappa
+    rfn = np.zeros((Ncoefs, Nk)) # reproduced coefs-neg-envelope for each kappa
+    rfp = np.zeros((Ncoefs, Nk)) # reproduced coefs-pos-envelope for each kappa
     for i_coef in range(Ncoefs):
         ccns[i_coef, :], rfn[i_coef, :] = approx_prof_coef(cns, i_coef)
         ccps[i_coef, :], rfp[i_coef, :] = approx_prof_coef(cps, i_coef)
@@ -408,7 +427,7 @@ def compute_env_coefs_dependence_kappa(
 
 
 # ---------------------------------------------------------------------------------------------
-# --- Reconstruct coefs-envelop for a particular kappa ---
+# --- Reconstruct coefs-envelope for a particular kappa ---
 def extrapolate_CEs(kappa_target, cns, cps, kappas):
     from scipy import interpolate
     _, Ncoefs = cns.shape
@@ -529,7 +548,7 @@ def compute_coefs_amplitudes(dds, Ncoefs, flag_save, path_save_plots):
 # ----------------------------------------------------------------------------------------
 # --- COMPUTE the coefficients to describe the change in the number of angles ---
 # flag_save to save the total number of angles versus kappa
-# but in python, this procedure draws N-angles-in-half-envelop;
+# but in python, this procedure draws N-angles-in-half-envelope;
 def compute_Na(k, coef_Na_env):
         res_pol = coef_Na_env[0]
         for ii in range(1,len(coef_Na_env)):
@@ -617,7 +636,7 @@ def compute_coefs_Na(dds, Ncoefs, flag_save, path_save_plots):
 
 
 # ----------------------------------------------------------------------------------------
-# --- Extract envelop of QSVT angles for the matrix inversion. ---
+# --- Extract envelope of QSVT angles for the matrix inversion. ---
 def extract_env(phis_sh, flag_start_neg = True):
     N = len(phis_sh)
     pos_peaks = np.zeros(N)
@@ -680,6 +699,7 @@ def extract_env(phis_sh, flag_start_neg = True):
 
 # ----------------------------------------------------------------------------------------
 # --- Construct QSVT angles from positive and negative envelops ---
+# Returns angels that can be used in a QSVT circuit.
 def construct_angles_from_envelops(
     full_env_neg_APPR, full_env_pos_APPR, flag_start_neg
 ):
@@ -709,14 +729,13 @@ def construct_angles_from_envelops(
         (phis_appr, np.flip(phis_appr))
     )
 
-    # shift the angles:
+    # --- Correct the angles to use then in a QSVT circuit ---
     phis_appr += np.pi/2.
-    
     return phis_appr
 
 
 # ----------------------------------------------------------------------------------------
-# --- Compute the coefficients to describe the shape (envelop) of the QSVT angles ---
+# --- Compute the coefficients to describe the shape (envelope) of the QSVT angles ---
 def compute_coefs_envelop(
     dd,
     Ncoefs = 10, 
@@ -813,14 +832,14 @@ def compute_coefs_envelop(
     print("N_env-half-NEG: {:d}".format(N_half_env_neg))
     print("N_env-half-POS: {:d}".format(N_half_env_pos))
     
-    # --- Plot the original envelop ---
-    print("The envelop for the kappa = {:0.0f} is taken.".format(dd["function-parameter"]))
+    # --- Plot the original envelope ---
+    print("The envelope for the kappa = {:0.0f} is taken.".format(dd["function-parameter"]))
     if flag_plot_envelop:
         fig = plt.figure(figsize=(FIG_SIZE_W_,FIG_SIZE_H_))
         ax = fig.add_subplot(111)
         ax.plot(range_full,    phis_sh_ch,   color="b", linewidth = 2, linestyle='-',  label = "phis-shifted")
-        ax.plot(range_env_pos, full_env_pos, color="r", linewidth = 2, linestyle='-',  label = "pos-envelop")
-        ax.plot(range_env_neg, full_env_neg, color="g", linewidth = 2, linestyle='-',  label = "neg-envelop")
+        ax.plot(range_env_pos, full_env_pos, color="r", linewidth = 2, linestyle='-',  label = "pos-envelope")
+        ax.plot(range_env_neg, full_env_neg, color="g", linewidth = 2, linestyle='-',  label = "neg-envelope")
         ax.plot()
         plt.xlabel('i')
         plt.ylabel("env")
@@ -851,7 +870,7 @@ def compute_coefs_envelop(
         ax.plot(range_env_pos, full_norm_env_pos,      color="b", linewidth = 2, linestyle='-')
         ax.plot(range_env_pos, full_norm_env_pos_APPR, color="r", linewidth = 2, linestyle=':')
         plt.xlabel('x')
-        plt.ylabel("pos. envelop")
+        plt.ylabel("pos. envelope")
         plt.grid(True)
         plt.show()
         
@@ -860,7 +879,7 @@ def compute_coefs_envelop(
         ax.plot(range_env_neg, full_norm_env_neg,      color="b", linewidth = 2, linestyle='-')
         ax.plot(range_env_neg, full_norm_env_neg_APPR, color="r", linewidth = 2, linestyle=':')
         plt.xlabel('x')
-        plt.ylabel("neg. envelop")
+        plt.ylabel("neg. envelope")
         plt.grid(True)
         plt.show()
 
@@ -869,7 +888,7 @@ def compute_coefs_envelop(
     if flag_reconstruct:
         print()
         print("\n--- Reconstructing the QSVT angles for the same kappa ---")
-        print("1. The envelop of the QSVT angles are approximated by the computed coefs.")
+        print("1. The envelope of the QSVT angles are approximated by the computed coefs.")
         print("2. The number of the QSVT angles and their absolute amplitudes are taken from the reference QSVT case.")
 
         # --- Reconstructing the angles ---
@@ -912,7 +931,7 @@ def compute_coefs_envelop(
 
 
 # ----------------------------------------------------------------------------------------
-# --- Plot coefficients approximating angles' envelop  ---
+# --- Plot coefficients approximating angles' envelope  ---
 def plot_env_coefs(dd, Ncoefs_arrs, flag_save, path_save_plots):
     def plot_one(coefs_arr, str_env):
         colors = ["b", "r", "green", "black"]
@@ -962,7 +981,6 @@ def plot_env_coefs(dd, Ncoefs_arrs, flag_save, path_save_plots):
 
 
 # ----------------------------------------------------------------------------------------
-# --- Compute 1/x using a sequence of rotations: GPU parallelization ---
 @jit(nopython=True)
 def compute_inverse_function_GPU(U, W, Rphi, Na):
     for ia in range(1,Na):
@@ -970,37 +988,48 @@ def compute_inverse_function_GPU(U, W, Rphi, Na):
     return U[0,0].real
 
 
+# ----------------------------------------------------------------------------------------
+@jit(nopython=True)
+def form_Rphi(Rphi, phis, Na):
+    for ia in range(Na):
+        ephi = np.exp(1j * phis[ia])
+        Rphi[ia,0,0] = ephi
+        Rphi[ia,1,1] = np.conjugate(ephi)
+    return 
+
+# ----------------------------------------------------------------------------------------
+# --- Compute 1/x using a sequence of rotations ---
 def construct_inverse_function_GPU(
         phis_in, kappa, coef_norm, xlim = None,
-        opt_domain = 0,
+        opt_domain = 2,
         flag_save = False, path_save_ = None, fname_save = None 
     ):
     phis_comp = np.array(phis_in)
     Na = len(phis_comp)
-    print("N-angles: {:d}".format(Na))
     print("kappa: {:0.1f}".format(kappa))
-    print("coef-norm: {:0.3e}".format(coef_norm))
-    print()
-    print("max. angle - np.pi/2: {:0.3e}".format(np.max(phis_comp - np.pi/2.)))
-    print("min. angle - np.pi/2: {:0.3e}".format(np.min(phis_comp - np.pi/2.)))
+    print("Na: {:d}".format(Na))
     
-    # corrections of the angles:
+    # print("coef-norm: {:0.3e}".format(coef_norm))
+    # print()
+    # print("max. angle - np.pi/2: {:0.3e}".format(np.max(phis_comp - np.pi/2.)))
+    # print("min. angle - np.pi/2: {:0.3e}".format(np.min(phis_comp - np.pi/2.)))
+    
+    # --- Correct the angles for the direct calculation of 1/x ---
     phis_comp     -= np.pi/2.
     phis_comp[0]  += np.pi/4.
     phis_comp[-1] += np.pi/4.
 
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    ax.plot(range(Na), phis_comp, color="b", linewidth = 2, linestyle='-')
-    plt.xlabel('i')
-    plt.ylabel("angles")
-    plt.grid(True)
-    plt.show()
+    # --- Plot the angles for the direct calculation of 1/x ---
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111)
+    # ax.plot(range(Na), phis_comp, color="b", linewidth = 2, linestyle='-')
+    # plt.xlabel('i')
+    # plt.ylabel("angles")
+    # plt.grid(True)
+    # plt.show()
 
     # --- x-grid ---
     Nx = 101
-    # Nx = 1001
-
     if opt_domain == 0:
         x_grid_1 = np.linspace(-1.0, -1.0/kappa, Nx)
         x_grid_2 = np.linspace(1.0/kappa, 1.0, Nx)
@@ -1010,22 +1039,17 @@ def construct_inverse_function_GPU(
     if opt_domain == 2:
         x_grid_1 = np.linspace(-8.0/kappa, -1.0/kappa, Nx)
         x_grid_2 = np.linspace(1.0/kappa, 8.0/kappa, Nx)
-
-    if opt_domain == 3:
-        dx = np.diff(np.linspace(1.0/kappa, 8.0/kappa, 101))[0]
-        Nx = 6
-        x_grid_1 = np.linspace(-1.0/kappa - dx*Nx, -1.0/kappa, Nx)
-        x_grid_2 = np.linspace(1.0/kappa, dx*Nx + 1.0/kappa, Nx)
-    
     x_grid = np.concatenate((x_grid_1, x_grid_2))
     Nx = len(x_grid)
     
     # rotation matrices:
     Rphi = np.zeros((Na,2,2), dtype = complex)
-    for ia in range(Na):
-        ephi = np.exp(1j * phis_comp[ia])
-        Rphi[ia,0,0] = ephi
-        Rphi[ia,1,1] = np.conjugate(ephi)
+    form_Rphi(Rphi, phis_comp, Na)
+
+    # for ia in range(Na):
+    #     ephi = np.exp(1j * phis_comp[ia])
+    #     Rphi[ia,0,0] = ephi
+    #     Rphi[ia,1,1] = np.conjugate(ephi)
     
     # --- reconstruction --- 
     inv_f = np.zeros(Nx)
@@ -1044,8 +1068,9 @@ def construct_inverse_function_GPU(
     inv_ref *= coef_norm/ kappa
 
     # --- normalize the functions ---
-    inv_f /= np.max(np.abs(inv_f))
-    inv_ref /= np.max(np.abs(inv_ref))
+    norm_coef = np.max(np.abs(inv_ref))
+    inv_f   /= norm_coef
+    inv_ref /= norm_coef
     
     # --- Error ---
     max_norm_abs_error = np.max(np.abs(inv_ref - inv_f))
@@ -1097,6 +1122,46 @@ def construct_inverse_function_GPU(
             x_grid, log_err
         )
     return
+
+
+# ----------------------------------------------------------------------------------------
+# --- Compute 1/x using a sequence of rotations: for a single x ---
+def construct_inverse_function_GPU_X1(phis, kappa, coef_norm_qsvt, x_grid):
+    # !!! here, do not modify phis !!!
+    # here, phis are the version of the QSVT angles used for direct computations:
+
+    # ---
+    Na = len(phis)
+    Nx = len(x_grid)
+
+    # rotation matrices:
+    Rphi = np.zeros((Na,2,2), dtype = complex)
+    form_Rphi(Rphi, phis, Na)
+    
+    # --- reconstruction --- 
+    inv_reco = np.zeros(Nx)
+    for ii in range(Nx):
+        x1 = x_grid[ii]
+        xs = 1j*np.sqrt(1 - x1**2)
+        W = np.array([
+            [x1, xs],
+            [xs, x1]
+        ], dtype = complex)
+        U = np.array(Rphi[0])
+        inv_reco[ii] = compute_inverse_function_GPU(U, W, Rphi, Na)
+        
+    # --- the reference case ---
+    inv_ref = ( 1. - np.exp(-(5*kappa*x_grid)**2) ) / x_grid
+    inv_ref *= coef_norm_qsvt/ kappa
+
+    # renormalize the signals:
+    norm_ampl = np.max(np.abs(inv_ref))
+    inv_ref  /= norm_ampl
+    inv_reco /= norm_ampl
+
+    # --- Error ---
+    max_norm_abs_error = np.max(np.abs(inv_ref - inv_reco))
+    return max_norm_abs_error
 
 
 # ----------------------------------------------------------------------------------------
@@ -1182,8 +1247,8 @@ def read_estimation(id_case = 0, Ncoefs = 40, path_root = "./tools/QSVT-angles/i
     print("factor-norm: {:0.3f}".format(dd["factor-norm"]))
     print("N-env-half-neg: {:d}".format(dd["N-env-half-neg"]))
     print("N-env-half-pos: {:d}".format(dd["N-env-half-pos"]))
-    print("N-coefs-envelop-neg: {:d}".format(len(dd["coefs-env-neg"])))
-    print("N-coefs-envelop-pos: {:d}".format(len(dd["coefs-env-pos"])))
+    print("N-coefs-envelope-neg: {:d}".format(len(dd["coefs-env-neg"])))
+    print("N-coefs-envelope-pos: {:d}".format(len(dd["coefs-env-pos"])))
     return dd
 
 
@@ -1191,7 +1256,8 @@ def read_estimation(id_case = 0, Ncoefs = 40, path_root = "./tools/QSVT-angles/i
 # --- Read the estimated parameters for the QSVT angles ---
 def save_estimated_angles(
         kappa_target, dd, phis_approx, id_case, Nc, 
-        path_root = "./tools/QSVT-angles/inversion/estimated-angles/"
+        path_root = "./tools/QSVT-angles/inversion/estimated-angles-Na-k/"
+        # path_root = "./tools/QSVT-angles/inversion/estimated-angles-Na-k-logk/"
 ):
     from datetime import datetime
     from datetime import date
@@ -1221,18 +1287,12 @@ def save_estimated_angles(
 
 
 # ----------------------------------------------------------------------------------------
-# --- Estimate the QSVT angles ---
-def estimate_angles(dd, kappa_goal, Nh_neg_ref = None, Nh_pos_ref = None):
-
-    def reproduce_env(str_env, N_env_half):
-        coefs_envelop    = dd["coefs-env-{:s}".format(str_env)]
-        coefs_ampl       = dd["coefs-ampl-{:s}".format(str_env)]
-
-        # - the number of peaks in the half of the envelop -
+def reproduce_env(coefs_envelop, coefs_ampl, N_env_half, kappa_goal):
+        # - the number of peaks in the half of the envelope -
         x = np.linspace(0.0, 1.0, N_env_half)
         Nx = len(x)
         
-        # - construct the half of the normalized envelop --
+        # - construct the half of the normalized envelope --
         Nc = len(coefs_envelop)
         env_half = np.zeros(Nx)
         for ix in range(Nx):
@@ -1240,49 +1300,497 @@ def estimate_angles(dd, kappa_goal, Nh_neg_ref = None, Nh_pos_ref = None):
             for ii in range(Nc):
                 env_half[ix] += coefs_envelop[ii] * np.cos((2*ii) * np.arccos(x[ix]))
 
-        # - full envelop -
+        # - full envelope -
         full_env = np.concatenate(( env_half, np.flip(env_half) ))
 
-        # - Rescale the envelop angles -
+        # - Rescale the envelope angles -
         max_ampl = coefs_ampl[0]
         for ii in range(1, len(coefs_ampl)):
             max_ampl += coefs_ampl[ii] / kappa_goal**ii
         full_env *= np.abs(max_ampl)
         return full_env
-    # -------------------------------------------------------------------- 
 
-    if Nh_neg_ref is None:
+
+# ----------------------------------------------------------------------------------------
+def reproduce_Nenv(dd, kappa_goal):
+    if SEL_EST_NA_ == 1:
         coef_Na_env_half_neg = dd["N-env-half-neg"]/dd["kappa"]
         coef_Na_env_half_pos = dd["N-env-half-pos"]/dd["kappa"]
-        N_env_half_neg = int(coef_Na_env_half_neg * kappa_goal) 
+        N_env_half_neg = int(coef_Na_env_half_neg * kappa_goal)
         N_env_half_pos = int(coef_Na_env_half_pos * kappa_goal) 
 
-        # N_env_half_neg = compute_Na(kappa_goal, dd["coefs-Na-neg"])
-        # N_env_half_pos = compute_Na(kappa_goal, dd["coefs-Na-pos"])
-        N_temp = (N_env_half_neg + N_env_half_pos) // 2
-        N_env_half_neg = N_temp 
-        N_env_half_pos = N_temp
-    else:
-        N_env_half_neg = Nh_neg_ref
-        N_env_half_pos = Nh_pos_ref
+    if SEL_EST_NA_ == 2:
+        N_env_half_neg = compute_Na(kappa_goal, dd["coefs-Na-neg"])
+        N_env_half_pos = compute_Na(kappa_goal, dd["coefs-Na-pos"])
 
+
+    N_temp = (N_env_half_neg + N_env_half_pos) // 2 
+    N_temp -= int(2*kappa_goal / 100)
+
+    N_env_half_neg = N_temp 
+    N_env_half_pos = N_temp
+    return N_env_half_neg, N_env_half_pos
+
+
+# ----------------------------------------------------------------------------------------
+def get_flag_peaks(N_env_half_neg, N_env_half_pos):
     Na_rec = (N_env_half_neg + N_env_half_pos) * 2
-    print("N-reconstructed-angles: {:d}".format(Na_rec))
-
     flag_more_neg_peaks = False
     if np.mod(Na_rec//2,2) == 1:
         flag_more_neg_peaks = True
+    return flag_more_neg_peaks
+
+
+# ----------------------------------------------------------------------------------------
+# --- Estimate the QSVT angles ---
+def estimate_angles(
+        dd, kappa_goal, 
+        flag_variation = False,
+        # ---
+        N_iter_Na = 10,
+        dN_env = None,
+        # ---
+        N_iter_c = 10,
+        coef_dc_init = 0.01,
+    ):
+    def get_N_neg_pos(N_env):
+        N_env_neg = N_env
+        N_env_pos = N_env
+        return N_env_neg, N_env_pos
+    # --------------------------------------------------
+    coef_norm = dd["factor-norm"]
+
+    # --- Estimate the number of angles ---
+    N_env_half_neg, N_env_half_pos = reproduce_Nenv(dd, kappa_goal)
+    flag_peaks = get_flag_peaks(N_env_half_neg, N_env_half_pos)
 
     # --- Estimation of the QSVT angles ---
-    full_env_neg = reproduce_env("neg", N_env_half_neg)
-    full_env_pos = reproduce_env("pos", N_env_half_pos)
-    phis_appr    = construct_angles_from_envelops(
-        full_env_neg, full_env_pos, flag_more_neg_peaks
-    )
+    coef_env_neg, coef_ampl_neg = dd["coefs-env-neg"], dd["coefs-ampl-neg"]
+    coef_env_pos, coef_ampl_pos = dd["coefs-env-pos"], dd["coefs-ampl-pos"]
+    env_neg = reproduce_env(coef_env_neg, coef_ampl_neg, N_env_half_neg, kappa_goal)
+    env_pos = reproduce_env(coef_env_pos, coef_ampl_pos, N_env_half_pos, kappa_goal)
+    phis_appr_best = construct_angles_from_envelops(env_neg, env_pos, flag_peaks)
+    del flag_peaks, env_neg, env_pos
 
-    # # - Correct the angles to compute the inverse function (for RECHECK) -
-    # phis_appr[0]  += np.pi/4.
-    # phis_appr[-1] += np.pi/4.
+    N_env_PREV = N_env_half_neg
+    del N_env_half_neg, N_env_half_pos
 
+    if flag_variation:
+        # ----------------------------------------------------------------
+        # --- Vary the estimation parameters to get a higher precision ---
+        # ----------------------------------------------------------------
+        if dN_env is None:
+            dN_env = int(kappa_goal / 100)
+        dN_env *= -1
+        dN_env_init = dN_env
+
+        # --- The x-points where the error is analyzed ---
+        Nx = 2
+        # x_grid_1 = np.linspace(-2.0/kappa_goal, -1.0/kappa_goal, Nx)
+        x_grid_2 = np.linspace(1.0/kappa_goal, 2.0/kappa_goal, Nx)
+
+        # Nx = 4
+        # x_grid_1 = np.linspace(-0.9, -1.0/kappa_goal, Nx)
+        # x_grid_2 = np.linspace(1.0/kappa_goal, 0.9, Nx)
+        
+        # x_grid = np.concatenate((x_grid_1, x_grid_2))
+        x_grid = np.array(x_grid_2)
+        # del x_grid_1
+        del Nx, x_grid_2
+
+        # --- Compute 1/x ---
+        phis_appr_best[1:-1] -= np.pi/2.
+        phis_appr_best[0]    -= np.pi/4.
+        phis_appr_best[-1]   -= np.pi/4.
+        err_curr = construct_inverse_function_GPU_X1(phis_appr_best, kappa_goal, coef_norm, x_grid)
+        
+        # --- initial parameters ---
+        cn_PREV = np.array(coef_env_neg)
+        cp_PREV = np.array(coef_env_pos)
+
+        # --- Print initial data ---
+        print()
+        print("--- Use the variation of estimation parameters ---")
+        print("N-iter: {:d}".format(N_iter_Na))
+        print("dN-env: {:d}".format(dN_env))
+
+        print()
+        print("iter, Na, N-env, err: {:3d}, {:d}, {:d}, {:0.3e}".format(
+            0, len(phis_appr_best), N_env_PREV, err_curr
+        ))
+
+        # -----------------------------------
+        # --- Variation of Na ---
+        print("\n------------------------------------------")
+        print("--- Variation of Na ---")
+        counter_cycle = 1
+        N_env_NEW, Nen_NEW, Nep_NEW, flag_peaks = None, None, None, None
+        env_neg, env_pos, phis_appr, err_new    = None, None, None, None
+        for ii in range(N_iter_Na):
+            # --- new N-env-half ---
+            N_env_NEW = N_env_PREV + dN_env
+            Nen_NEW, Nep_NEW = get_N_neg_pos(N_env_NEW)
+
+            # --- compute new angles ---
+            flag_peaks = get_flag_peaks(Nen_NEW, Nep_NEW)
+            env_neg = reproduce_env(cn_PREV, coef_ampl_neg, Nen_NEW, kappa_goal)
+            env_pos = reproduce_env(cp_PREV, coef_ampl_pos, Nep_NEW, kappa_goal)
+            phis_appr = construct_angles_from_envelops(env_neg, env_pos, flag_peaks)
+
+            # --- compute the error ---
+            phis_appr[1:-1] -= np.pi/2.
+            phis_appr[0]    -= np.pi/4.
+            phis_appr[-1]   -= np.pi/4.
+            err_new = construct_inverse_function_GPU_X1(phis_appr, kappa_goal, coef_norm, x_grid)
+
+            # --- Print results ---
+            print("iter, Na, N-env, err: {:3d}, {:d}, {:d}, {:0.3e}".format(
+                ii+1, len(phis_appr), N_env_NEW, err_new,
+            ), end = "")
+
+            # --- modify the estimation parametes ---
+            if err_new > err_curr:
+                if np.abs(dN_env) == 1:
+                    if counter_cycle == 2:
+                        break
+                    else:
+                        print(" ... change direction", end = "")
+                        counter_cycle += 1
+                        dN_env = dN_env_init//4
+                        dN_env *= -1
+                else:
+                    print(" ... reduce step", end = "")
+                    dN_env = dN_env//2
+            else:
+                print(" >>> new phis", end = "")
+                dN_env_init = dN_env
+                err_curr = err_new
+                N_env_PREV = N_env_NEW
+                phis_appr_best = phis_appr
+                # if counter_cycle > 1:
+                #     print(" ... reduce step", end = "")
+                #     dN_env = dN_env//2
+                #     if dN_env == 0:
+                #         break
+            print()
+
+        del N_env_NEW, Nen_NEW, Nep_NEW, flag_peaks
+        del env_neg, env_pos, phis_appr, err_new
+
+        # -----------------------------------
+        # --- Variation of coefs-envelope ---
+        print("\n------------------------------------------")
+        print("--- Variation of coefficients ---")
+        flag_peaks, cn_NEW, cp_NEW, env_neg, env_pos, phis_appr, err_new = \
+            None, None, None, None, None, None, None
+        Nen, Nep = get_N_neg_pos(N_env_PREV)
+        print("-- err-init: {:14.3e} --".format(err_curr))
+        coef_dc = coef_dc_init
+        counter_dir = 1
+        for i_iter in range(N_iter_c):
+
+            # --- new coefs-envelope ---
+            cn_NEW = cn_PREV * (1 - coef_dc)
+            cp_NEW = cp_PREV * (1 + coef_dc)
+
+            # --- compute new angles ---
+            flag_peaks = get_flag_peaks(Nen, Nep)
+            env_neg = reproduce_env(cn_NEW, coef_ampl_neg, Nen, kappa_goal)
+            env_pos = reproduce_env(cp_NEW, coef_ampl_pos, Nep, kappa_goal)
+            phis_appr = construct_angles_from_envelops(env_neg, env_pos, flag_peaks)
+
+            # --- compute the error ---
+            phis_appr[1:-1] -= np.pi/2.
+            phis_appr[0]    -= np.pi/4.
+            phis_appr[-1]   -= np.pi/4.
+            err_new = construct_inverse_function_GPU_X1(phis_appr, kappa_goal, coef_norm, x_grid)
+
+            # --- Print results ---
+            print("iter, coef, err: {:3d}, {:0.3e}, {:14.3e}".format(
+                i_iter+1, coef_dc, err_new
+            ), end = "")
+
+            # --- modify the estimation parametes ---
+            if err_new > err_curr:
+                if np.abs(coef_dc) < 1e-4:
+                    if counter_dir == 2:
+                        break
+                    else:
+                        print(" ... change direction", end = "")
+                        counter_dir += 1
+                        coef_dc = coef_dc_init/4.
+                        coef_dc *= -1
+                else:
+                    print(" ... reduce step", end = "")
+                    coef_dc /= 10.
+            else:
+                print(" >>> new phis", end = "")
+                err_curr = err_new
+                coef_dc_init = coef_dc
+                cn_PREV = np.array(cn_NEW)
+                cp_PREV = np.array(cp_NEW)
+                phis_appr_best = phis_appr
+                # if counter_dir > 1:
+                #     print(" ... *reduce step", end = "")
+                #     coef_dc /= 10.
+                #     if np.abs(coef_dc) < 1e-4:
+                #         break
+            print()
+        del Nen, Nep, flag_peaks, cn_NEW, cp_NEW, env_neg, env_pos, phis_appr, err_new
+        
+        # --- Chosen parameters ---
+        print()
+        print("*** Results ***")
+        print("err: {:0.3e}".format(err_curr))
+        print("N-env: {:d}".format(N_env_PREV))
+
+        # --- Correct the angles ---
+        phis_appr_best[1:-1] += np.pi/2.
+        phis_appr_best[0]    += np.pi/4.
+        phis_appr_best[-1]   += np.pi/4.
+  
+        # # --- Compute the best obtained angles ---
+        # Nen, Nep = get_N_neg_pos(N_env_PREV)
+        # flag_peaks = get_flag_peaks(Nen, Nep)
+        # env_neg = reproduce_env(cn_PREV, coef_ampl_neg, Nen, kappa_goal)
+        # env_pos = reproduce_env(cp_PREV, coef_ampl_pos, Nep, kappa_goal)
+        # phis_appr_best = construct_angles_from_envelops(env_neg, env_pos, flag_peaks)
+
+    # --- Return the estimated QSVT angles ---
+    print("Na: {:d}".format(len(phis_appr_best)))
     print("Done.")
-    return phis_appr, dd["factor-norm"]
+    return phis_appr_best, coef_norm
+
+
+
+
+
+
+
+
+
+# # ----------------------------------------------------------------------------------------
+# # --- Estimate the QSVT angles ---
+# def estimate_angles(
+#         dd, kappa_goal, 
+#         flag_variation = False,
+#         # ---
+#         N_iter_Na = 10,
+#         dN_env = None,
+#         # ---
+#         N_coefs_cycles = 0,
+#         N_coefs_to_vary = 0,
+#         N_iter_c = 10,
+#         coef_dc_init = 0.01,
+#     ):
+#     def get_N_neg_pos(N_env):
+#         N_env_neg = N_env
+#         N_env_pos = N_env
+#         return N_env_neg, N_env_pos
+#     # --------------------------------------------------
+#     coef_norm = dd["factor-norm"]
+
+#     # --- Estimate the number of angles ---
+#     N_env_half_neg, N_env_half_pos = reproduce_Nenv(dd, kappa_goal)
+#     flag_peaks = get_flag_peaks(N_env_half_neg, N_env_half_pos)
+
+#     # --- Estimation of the QSVT angles ---
+#     coef_env_neg, coef_ampl_neg = dd["coefs-env-neg"], dd["coefs-ampl-neg"]
+#     coef_env_pos, coef_ampl_pos = dd["coefs-env-pos"], dd["coefs-ampl-pos"]
+#     env_neg = reproduce_env(coef_env_neg, coef_ampl_neg, N_env_half_neg, kappa_goal)
+#     env_pos = reproduce_env(coef_env_pos, coef_ampl_pos, N_env_half_pos, kappa_goal)
+#     phis_appr_best = construct_angles_from_envelops(env_neg, env_pos, flag_peaks)
+#     del flag_peaks, env_neg, env_pos
+
+#     N_env_PREV = N_env_half_neg
+#     del N_env_half_neg, N_env_half_pos
+
+#     if flag_variation:
+#         # ----------------------------------------------------------------
+#         # --- Vary the estimation parameters to get a higher precision ---
+#         # ----------------------------------------------------------------
+#         if dN_env is None:
+#             dN_env = int(kappa_goal / 100)
+#         dN_env *= -1
+#         dN_env_init = dN_env
+
+#         # --- The x-points where the error is analyzed ---
+#         Nx = 3
+#         x_grid_1 = np.linspace(-2.0/kappa_goal, -1.0/kappa_goal, Nx)
+#         x_grid_2 = np.linspace(1.0/kappa_goal, 2.0/kappa_goal, Nx)
+
+#         # Nx = 4
+#         # x_grid_1 = np.linspace(-0.9, -1.0/kappa_goal, Nx)
+#         # x_grid_2 = np.linspace(1.0/kappa_goal, 0.9, Nx)
+        
+#         x_grid = np.concatenate((x_grid_1, x_grid_2))
+#         del Nx, x_grid_1, x_grid_2
+
+#         # --- Compute 1/x ---
+#         phis_appr_best[1:-1] -= np.pi/2.
+#         phis_appr_best[0]    -= np.pi/4.
+#         phis_appr_best[-1]   -= np.pi/4.
+#         err_curr = construct_inverse_function_GPU_X1(phis_appr_best, kappa_goal, coef_norm, x_grid)
+        
+#         # --- initial parameters ---
+#         cn_PREV = np.array(coef_env_neg)
+#         cp_PREV = np.array(coef_env_pos)
+
+#         # --- Print initial data ---
+#         print()
+#         print("--- Use the variation of estimation parameters ---")
+#         print("N-iter: {:d}".format(N_iter_Na))
+#         print("dN-env: {:d}".format(dN_env))
+
+#         print()
+#         print("iter, Na, N-env, err: {:3d}, {:d}, {:d}, {:0.3e}".format(
+#             0, len(phis_appr_best), N_env_PREV, err_curr
+#         ))
+
+#         # -----------------------------------
+#         # --- Variation of Na ---
+#         print("\n------------------------------------------")
+#         print("--- Variation of Na ---")
+#         counter_cycle = 1
+#         N_env_NEW, Nen_NEW, Nep_NEW, flag_peaks = None, None, None, None
+#         env_neg, env_pos, phis_appr, err_new    = None, None, None, None
+#         for ii in range(N_iter_Na):
+#             # --- new N-env-half ---
+#             N_env_NEW = N_env_PREV + dN_env
+#             Nen_NEW, Nep_NEW = get_N_neg_pos(N_env_NEW)
+
+#             # --- compute new angles ---
+#             flag_peaks = get_flag_peaks(Nen_NEW, Nep_NEW)
+#             env_neg = reproduce_env(cn_PREV, coef_ampl_neg, Nen_NEW, kappa_goal)
+#             env_pos = reproduce_env(cp_PREV, coef_ampl_pos, Nep_NEW, kappa_goal)
+#             phis_appr = construct_angles_from_envelops(env_neg, env_pos, flag_peaks)
+
+#             # --- compute the error ---
+#             phis_appr[1:-1] -= np.pi/2.
+#             phis_appr[0]    -= np.pi/4.
+#             phis_appr[-1]   -= np.pi/4.
+#             err_new = construct_inverse_function_GPU_X1(phis_appr, kappa_goal, coef_norm, x_grid)
+
+#             # --- Print results ---
+#             print("iter, Na, N-env, err: {:3d}, {:d}, {:d}, {:0.3e}".format(
+#                 ii+1, len(phis_appr), N_env_NEW, err_new,
+#             ), end = "")
+
+#             # --- modify the estimation parametes ---
+#             if err_new > err_curr:
+#                 if np.abs(dN_env) == 1:
+#                     if counter_cycle == 2:
+#                         break
+#                     else:
+#                         print(" ... change direction", end = "")
+#                         counter_cycle += 1
+#                         dN_env = dN_env_init//2
+#                         dN_env *= -1
+#                 else:
+#                     print(" ... reduce step", end = "")
+#                     dN_env = dN_env//2
+#             else:
+#                 print(" >>> new phis", end = "")
+#                 dN_env_init = dN_env
+#                 err_curr = err_new
+#                 N_env_PREV = N_env_NEW
+#                 phis_appr_best = phis_appr
+#                 if counter_cycle > 1:
+#                     print(" ... reduce step", end = "")
+#                     dN_env = dN_env//2
+#                     if dN_env == 0:
+#                         break
+#             print()
+
+#         del N_env_NEW, Nen_NEW, Nep_NEW, flag_peaks
+#         del env_neg, env_pos, phis_appr, err_new
+
+#         # -----------------------------------
+#         # --- Variation of coefs-envelope ---
+#         print("\n------------------------------------------")
+#         print("--- Variation of coefficients ---")
+#         flag_peaks, cn_NEW, cp_NEW, env_neg, env_pos, phis_appr, err_new = \
+#             None, None, None, None, None, None, None
+#         Nen, Nep = get_N_neg_pos(N_env_PREV)
+
+#         for i_cycle in range(N_coefs_cycles):
+#             print()
+#             print("*************************************************")
+#             print("*** Cycle {:d} ***".format(i_cycle + 1))
+#             for i_coef in range(N_coefs_to_vary):
+#                 print()
+#                 print("-- i-coef, neg, pos, err-init: {:d}, {:0.3e}, {:0.3e}, {:14.3e} --".format(
+#                     i_coef, cn_PREV[i_coef], cp_PREV[i_coef], err_curr
+#                 ))
+#                 counter_cycle = 1
+#                 coef_dc = coef_dc_init/(2+2*i_coef)
+#                 for i_iter in range(N_iter_c):
+
+#                     # --- new coefs-envelope ---
+#                     cn1, cp1 = cn_PREV[i_coef], cp_PREV[i_coef]
+
+#                     cn1 = cn1 * (1 - coef_dc)
+#                     cp1 = cp1 * (1 + coef_dc)
+
+#                     cn_NEW = np.array(cn_PREV)
+#                     cp_NEW = np.array(cp_PREV)
+
+#                     cn_NEW[i_coef] = cn1
+#                     cp_NEW[i_coef] = cp1
+
+#                     # --- compute new angles ---
+#                     flag_peaks = get_flag_peaks(Nen, Nep)
+#                     env_neg = reproduce_env(cn_NEW, coef_ampl_neg, Nen, kappa_goal)
+#                     env_pos = reproduce_env(cp_NEW, coef_ampl_pos, Nep, kappa_goal)
+#                     phis_appr = construct_angles_from_envelops(env_neg, env_pos, flag_peaks)
+
+#                     # --- compute the error ---
+#                     phis_appr[1:-1] -= np.pi/2.
+#                     phis_appr[0]    -= np.pi/4.
+#                     phis_appr[-1]   -= np.pi/4.
+#                     err_new = construct_inverse_function_GPU_X1(phis_appr, kappa_goal, coef_norm, x_grid)
+
+#                     # --- Print results ---
+#                     print("iter, neg, pos, err: {:3d}, {:0.3e}, {:0.3e}, {:14.3e}".format(
+#                         i_iter+1, cn1, cp1, err_new
+#                     ))
+
+#                     # --- modify the estimation parametes ---
+#                     if err_new > err_curr:
+#                         if counter_cycle == 2:
+#                             break
+#                         else:
+#                             counter_cycle += 1
+#                             coef_dc *= -1
+#                     else:
+#                         err_curr = err_new
+#                         cn_PREV = np.array(cn_NEW)
+#                         cp_PREV = np.array(cp_NEW)
+#                         phis_appr_best = phis_appr
+#         del Nen, Nep, flag_peaks, cn_NEW, cp_NEW, env_neg, env_pos, phis_appr, err_new
+        
+#         # --- Chosen parameters ---
+#         print()
+#         print("*** Results ***")
+#         print("err: {:0.3e}".format(err_curr))
+#         print("N-env: {:d}".format(N_env_PREV))
+
+#         # --- Correct the angles ---
+#         phis_appr_best[1:-1] += np.pi/2.
+#         phis_appr_best[0]    += np.pi/4.
+#         phis_appr_best[-1]   += np.pi/4.
+  
+#         # # --- Compute the best obtained angles ---
+#         # Nen, Nep = get_N_neg_pos(N_env_PREV)
+#         # flag_peaks = get_flag_peaks(Nen, Nep)
+#         # env_neg = reproduce_env(cn_PREV, coef_ampl_neg, Nen, kappa_goal)
+#         # env_pos = reproduce_env(cp_PREV, coef_ampl_pos, Nep, kappa_goal)
+#         # phis_appr_best = construct_angles_from_envelops(env_neg, env_pos, flag_peaks)
+
+#     # --- Return the estimated QSVT angles ---
+#     print("Na: {:d}".format(len(phis_appr_best)))
+#     print("Done.")
+#     return phis_appr_best, coef_norm
+
+
+
