@@ -39,7 +39,7 @@ def plot_A_structure(
         A, 
         name_A = "", label_A = "", 
         file_save = "", flag_save = False, path_save = None, 
-        fontsize = 24, marker_size = 160,
+        fontsize = 30, marker_size = 160,
         text_coord_label = [1, 14],
         text_coord_name_A = [12, 1],
 ):
