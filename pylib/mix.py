@@ -1220,7 +1220,8 @@ def find_correcting_angles_for_Rc_FLOAT(required_value, init_vec, prec = G_zero_
     except Exception as e:
         dump = 0
 
-    N_iter = 4
+    print("here")
+    N_iter = 40
     for _ in range(N_iter):
         ayc, azc, flag_return = one_iteration(2*np.pi*np.random.rand(2))
         if flag_return:

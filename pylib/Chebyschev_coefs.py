@@ -166,6 +166,14 @@ class Ch_:
             y[ii] = 1. / np.sqrt(1 + self.par_**2 * np.arcsin(x[ii])**2)
         return y   
     
+    # - id_fun_ = 41 -
+    def func_LCHS_weights_2(self, x):
+        Nx = len(x)
+        y = np.zeros(Nx)
+        for ii in range(Nx):
+            y[ii] = 1. / (1 + self.par_**2 * np.arcsin(x[ii])**2)
+        return y 
+    
     # - id_fun_ = 10 -
     def series_x(self, x):
         Nx = len(x)
@@ -239,6 +247,14 @@ class Ch_:
             self.func_ch_ = self.func_LCHS_weights
             self.parity_ = 0
             self.line_f_ = "LCHS-weights"
+            self.line_par_ = "{:d}".format(int(self.par_))
+
+        if self.id_fun_ == 41:
+            self.path_root_ ="./tools/QSVT-angles/LCHS-weights-2/coefs/"
+            self.coef_norm_ = 1.0 - 1.e-4
+            self.func_ch_ = self.func_LCHS_weights_2
+            self.parity_ = 0
+            self.line_f_ = "LCHS-weights-2"
             self.line_par_ = "{:d}".format(int(self.par_))
 
         if self.id_fun_ == 10:

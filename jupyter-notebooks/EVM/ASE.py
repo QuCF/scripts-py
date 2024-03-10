@@ -194,6 +194,10 @@ def preliminary_parameters_for_submatrices(oo_ase):
     print("Nvhm1 {:d}".format(Nvh-1))
     print("Nxm2 {:d}".format(Nx-2))
     print("Nxm4 {:d}".format(Nx-4))
+    print()
+    print("Nvm1 {:d}".format(Nv-1))
+    print("Nvm3 {:d}".format(Nv-3))
+    print("Nvm4 {:d}".format(Nv-4))
     
     # --- Submatrix Cf ---
     # v-profile: assume that v << 1:
@@ -222,7 +226,6 @@ def preliminary_parameters_for_submatrices(oo_ase):
     print("angle_se \t{:0.12f}".format(angle_se))
 
     # --- Submatrix F: profiles ---
-    
 
     # - Left blocks FB1 -
     shift_x = Nx//2 * Nv
@@ -340,10 +343,10 @@ def preliminary_parameters_for_submatrices(oo_ase):
     alpha_0_FR2 = - np.abs(v1)
     alpha_1_FR2 = np.abs(v1) * coef_ratio
 
-    # - Main Diag --
+    # --- Main Diag ---
     coef_lcu = 2.
 
-    # * left edge *
+    # -- left edge --
     # real sin
     shift_x = Nvh-2
     v1 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x)
@@ -358,11 +361,21 @@ def preliminary_parameters_for_submatrices(oo_ase):
     a1_FB0_L = coef_lcu * (v_end - v_start) * coef_ratio_2
 
     # imaginary part:
-    a0_FB0_iw_L = - coef_lcu * 2. * np.arcsin(v1.imag) 
+    a0_FB0_iw_L = - 2. * np.arcsin(coef_lcu * v1.imag) 
 
-    # corrections:
+    # corrections for the LEFT diagonal:
+    def find_corr_F_edges_LEFT(id_v, a0_FB0, a1_FB0):
+        vv = oo_ase.BF_prof_.get_matrix_element(id_v, id_v)
+        a_corr_i = - 2. * np.arcsin(coef_lcu * vv.imag)
+        a_inv = 2. * (a0_FB0 + id_v * (2. * a1_FB0) / Nvh)
+        a_corr_r = 2. * np.arccos(coef_lcu * vv.real)
+        return a_inv, a_corr_r, a_corr_i
+    
+    aL_inv_v0, aL_corr_v0_r, aL_corr_v0_i = find_corr_F_edges_LEFT(0, a0_FB0_L, a1_FB0_L)
+    aL_inv_v2, aL_corr_v2_r, aL_corr_v2_i = find_corr_F_edges_LEFT(2, a0_FB0_L, a1_FB0_L)
+    aL_inv_v3, aL_corr_v3_r, aL_corr_v3_i = find_corr_F_edges_LEFT(3, a0_FB0_L, a1_FB0_L)
 
-    # * right edge *
+    # -- right edge --
     shift_x = (Nx-1) * Nv + Nvh
     v1 = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x)
     shift_x = (Nx-1) * Nv + Nvh+1
@@ -378,6 +391,18 @@ def preliminary_parameters_for_submatrices(oo_ase):
     # imaginary part:
     a0_FB0_iw_R = - coef_lcu * 2. * np.arcsin(v1.imag) 
 
+    # corrections for the RIGHT diagonal:
+    def find_corr_F_edges_RIGHT(id_v, a0_FB0, a1_FB0):
+        shift_x = (Nx-1) * Nv + id_v
+        vv = oo_ase.BF_prof_.get_matrix_element(shift_x, shift_x)
+        a_corr_i = - 2. * np.arcsin(coef_lcu * vv.imag)
+        a_inv = 2. * (a0_FB0 + (id_v - Nvh) * (2. * a1_FB0) / Nvh)
+        a_corr_r = 2. * np.arccos(coef_lcu * vv.real)
+        return a_inv, a_corr_r, a_corr_i
+    aR_inv_vm1, aR_corr_vm1_r, aR_corr_vm1_i = find_corr_F_edges_RIGHT(Nv-1, a0_FB0_R, a1_FB0_R)
+    aR_inv_vm3, aR_corr_vm3_r, aR_corr_vm3_i = find_corr_F_edges_RIGHT(Nv-3, a0_FB0_R, a1_FB0_R)
+    aR_inv_vm4, aR_corr_vm4_r, aR_corr_vm4_i = find_corr_F_edges_RIGHT(Nv-4, a0_FB0_R, a1_FB0_R)
+
 
     print("\n//--- Parameters for the submatrix F-prof ---")
     print("\n//- diag 0: left edge -")
@@ -385,10 +410,36 @@ def preliminary_parameters_for_submatrices(oo_ase):
     print("a1_FB0_L \t{:0.12f}".format(a1_FB0_L))
     print("a0_FB0_iw_L \t{:0.12f}".format(a0_FB0_iw_L))
 
+    print("\n//- diag 0: left edge: corrections -")
+    print("aL_inv_v0  \t\t{:0.12f}".format(aL_inv_v0))
+    print("aL_corr_v0_r \t{:0.12f}".format(aL_corr_v0_r))
+    print("aL_corr_v0_i \t{:0.12f}".format(aL_corr_v0_i))
+    print()
+    print("aL_inv_v2  \t\t{:0.12f}".format(aL_inv_v2))
+    print("aL_corr_v2_r \t{:0.12f}".format(aL_corr_v2_r))
+    print("aL_corr_v2_i \t{:0.12f}".format(aL_corr_v2_i))
+    print()
+    print("aL_inv_v3  \t\t{:0.12f}".format(aL_inv_v3))
+    print("aL_corr_v3_r \t{:0.12f}".format(aL_corr_v3_r))
+    print("aL_corr_v3_i \t{:0.12f}".format(aL_corr_v3_i))
+
     print("\n//- diag 0: right edge -")
     print("a0_FB0_R \t{:0.12f}".format(a0_FB0_R))
     print("a1_FB0_R \t{:0.12f}".format(a1_FB0_R))
     print("a0_FB0_iw_R \t{:0.12f}".format(a0_FB0_iw_R))
+
+    print("\n//- diag 0: right edge: corrections -")
+    print("aR_inv_vm1    \t{:0.12f}".format(aR_inv_vm1))
+    print("aR_corr_vm1_r \t{:0.12f}".format(aR_corr_vm1_r))
+    print("aR_corr_vm1_i \t{:0.12f}".format(aR_corr_vm1_i))
+    print()
+    print("aR_inv_vm3    \t{:0.12f}".format(aR_inv_vm3))
+    print("aR_corr_vm3_r \t{:0.12f}".format(aR_corr_vm3_r))
+    print("aR_corr_vm3_i \t{:0.12f}".format(aR_corr_vm3_i))
+    print()
+    print("aR_inv_vm4    \t{:0.12f}".format(aR_inv_vm4))
+    print("aR_corr_vm4_r \t{:0.12f}".format(aR_corr_vm4_r))
+    print("aR_corr_vm4_i \t{:0.12f}".format(aR_corr_vm4_i))
 
     print("\n//- diag -1 -")
     print("alpha_0_LFB1 \t{:0.12f}".format(alpha_0_LFB1))
@@ -438,8 +489,6 @@ def preliminary_parameters_for_submatrices(oo_ase):
     return
 
 
-
-
 # recheck the QuCF simulation of the submatrices:
 def recheck_QuCF_submatrices(oo_ase):
     dd = qucf_r.read_matrix_sparse(oo_ase.path_qc_, oo_ase.output_qucf_) 
@@ -456,8 +505,6 @@ def recheck_QuCF_submatrices(oo_ase):
     S_recon = dd["A"].get_slice(oo_ase.Nvar_work_, oo_ase.Nvar_work_, oo_ase.Nvar_work_)
     compare_reconstructed(S_recon, oo_ase.S_orig_)
     return
-
-
 
 
 # --------------------------------------------------------------------------------------------
