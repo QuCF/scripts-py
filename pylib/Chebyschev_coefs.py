@@ -79,6 +79,10 @@ class Ch_:
     sel_method_ = 0
 
 
+    # absolute errors in the reconstructed signal:
+    log_err_ = None
+
+
     # sel_method = 0: use the minimization procedure to compute the coefficients.
     # sel_method = 1: use the direct computation.
     # sel_method = 2: use both methods.
@@ -162,6 +166,14 @@ class Ch_:
             y[ii] = 1. / np.sqrt(1 + self.par_**2 * np.arcsin(x[ii])**2)
         return y   
     
+    # - id_fun_ = 41 -
+    def func_LCHS_weights_2(self, x):
+        Nx = len(x)
+        y = np.zeros(Nx)
+        for ii in range(Nx):
+            y[ii] = 1. / (1 + self.par_**2 * np.arcsin(x[ii])**2)
+        return y 
+    
     # - id_fun_ = 10 -
     def series_x(self, x):
         Nx = len(x)
@@ -178,8 +190,10 @@ class Ch_:
             self, id_func, par_in, 
             profile_in = None, 
             name_prof = None,
-            parity_in = None, path_root_in = None,
-            series_coefs = None
+            parity_in = None, 
+            path_root_in = None,
+            series_coefs = None,
+            x_grid = None
     ):
         self.par_ = par_in
         self.id_fun_ = id_func
@@ -191,6 +205,8 @@ class Ch_:
             self.parity_ = parity_in
             self.line_f_ = name_prof
             self.line_par_ = ""
+            if x_grid is not None:
+                self.x_ = np.array(x_grid)
 
         if self.id_fun_ == 0:
             self.path_root_ ="./tools/QSVT-angles/xG/coefs/"
@@ -231,6 +247,14 @@ class Ch_:
             self.func_ch_ = self.func_LCHS_weights
             self.parity_ = 0
             self.line_f_ = "LCHS-weights"
+            self.line_par_ = "{:d}".format(int(self.par_))
+
+        if self.id_fun_ == 41:
+            self.path_root_ ="./tools/QSVT-angles/LCHS-weights-2/coefs/"
+            self.coef_norm_ = 1.0 - 1.e-4
+            self.func_ch_ = self.func_LCHS_weights_2
+            self.parity_ = 0
+            self.line_f_ = "LCHS-weights-2"
             self.line_par_ = "{:d}".format(int(self.par_))
 
         if self.id_fun_ == 10:
@@ -276,7 +300,8 @@ class Ch_:
             self.Nx_ = len(self.y_ref_)
 
         # x-grid: Chebyschev roots:
-        self.x_ = get_Cheb_roots(self.Nx_)    
+        if self.x_ is None:
+            self.x_ = get_Cheb_roots(self.Nx_)    
 
         # - Evaluate the chosen function -
         if self.id_fun_ >= 0:
@@ -370,9 +395,16 @@ class Ch_:
 
     # --- Plot errors --- 
     def plot_errors(self):
+        self.log_err_ = np.zeros(len(self.y_rec_))
+        for ii in range(len(self.y_rec_)):
+            err1 = np.abs(self.y_rec_[ii] - self.y_ref_[ii])
+            if err1 < 1e-17:
+                err1 = 1e-17
+            self.log_err_[ii] = np.log10(err1)
+
         fig = plt.figure()
         ax = fig.add_subplot(111)
-        ax.plot(self.x_, np.log10(np.abs(self.y_rec_ - self.y_ref_)), color="b", linewidth = 2, linestyle='-')
+        ax.plot(self.x_, self.log_err_, color="b", linewidth = 2, linestyle='-')
         plt.xlabel('x')
         plt.ylabel("log10(yrec - yref)")
         # plt.xlim(-5, 5)
@@ -449,9 +481,15 @@ class Ch_:
 
 
     # --- Reproduce the function using sin(x)-grid ---
-    def get_rec_y_sin_x(self): 
-        x = np.linspace(-1, 1, self.Nx_)
+    def get_rec_y_sin_x(self, x = None): 
+        if x is None:
+            x = np.linspace(-1, 1, self.Nx_)
         return self.rec_func_(np.sin(x), self.coefs_)
+    
+    def get_rec_y_x(self, x = None): 
+        if x is None:
+            x = np.linspace(-1, 1, self.Nx_)
+        return self.rec_func_(x, self.coefs_)
 
 
 # **********************************************************************************************  

@@ -1220,7 +1220,8 @@ def find_correcting_angles_for_Rc_FLOAT(required_value, init_vec, prec = G_zero_
     except Exception as e:
         dump = 0
 
-    N_iter = 4
+    print("here")
+    N_iter = 40
     for _ in range(N_iter):
         ayc, azc, flag_return = one_iteration(2*np.pi*np.random.rand(2))
         if flag_return:
@@ -1275,28 +1276,43 @@ def find_correcting_angles_for_Rc_MMATH(required_value, init_vec, prec = G_zero_
     
 # ------------------------------------------------------------------------------------------
 @jit(nopython=True)
-def compare_matrices_dense(B, A, prec = 1e-6):
+def compare_matrices_dense(B, A, prec = 1e-6, flag_return_err = False):
     N = A.shape[0]
-
     if N != B.shape[0]:
         print("The matrices have different sizes.")
         return
 
+    max_abs_err = 0
     for ir in range(N):
         for ic in range(N):
             ar, ai = np.real(B[ir, ic]), np.imag(B[ir, ic])
             br, bi = np.real(A[ir, ic]), np.imag(A[ir, ic])
 
-            flag_not_the_same = False
-            if np.abs(ar - br) > prec:
-                flag_not_the_same = True
-            if np.abs(ai - bi) > prec:
-                flag_not_the_same = True
+            # print("ir, ic, A, B: ", ir, ic, A[ir, ic], B[ir, ic])
 
-            if flag_not_the_same:
-                print("<<< WARNING: not the same within precision ", prec, " >>>")
-                return
-    print("the same within precision ", prec)
+            if flag_return_err:
+                err_loc = np.abs(B[ir, ic] - A[ir, ic])
+                if err_loc > max_abs_err:
+                    max_abs_err = err_loc
+            else:
+                flag_not_the_same = False
+                if np.abs(ar - br) > prec:
+                    flag_not_the_same = True
+                if np.abs(ai - bi) > prec:
+                    flag_not_the_same = True
+
+                if flag_not_the_same:
+                    print(\
+                        "WARNING: the matrices are NOT the same within" + \
+                            " the following precision: ", prec
+                    )
+                    return
+    if flag_return_err:
+        # print("max. abs. err: {:0.3e}".format(max_abs_err))
+        print("log10|max.err|: ", np.log10(max_abs_err))
+    else:
+        # print("The matrices are the same within the following precision: {:0.3e}".format(prec))
+        print("The matrices are the same within the following precision: ", prec)
     return
 
 
@@ -1579,7 +1595,7 @@ class SparseMatrix:
         return A_dense
 
 
-    # -------------------------------------------------------------------------------
+    # ------------------------------------------------------------------------------------------
     def plot_structure(self, 
         name_A, 
         sup_str="", 
@@ -1614,18 +1630,13 @@ class SparseMatrix:
         ax = fig1.add_subplot(111)
         ax.scatter(rows_A, cols_A, color="red", s = marker_size) 
 
-        # plt.xlim(0, N - 1)
-        # plt.ylim(0, N - 1)
+        plt.gca().invert_yaxis()
         plt.xlim(-1,  N)
         plt.ylim( N, -1)
 
-        plt.gca().invert_yaxis()
         plt.xlabel(r'$\textbf{columns}$', fontsize = fontsize)
         plt.ylabel(r"$\textbf{rows}$", fontsize = fontsize)
         plt.grid()
-
-        plt.xlim(-1.0, N)
-        plt.ylim(N, -1.0)
 
         plt.yticks(np.arange(0, N, 3))
         plt.xticks(np.arange(0, N, 3))
@@ -1646,11 +1657,52 @@ class SparseMatrix:
                 return
             plt.savefig(path_save + "/" + "{:s}.png".format(file_save))
         return
-        
+    
+
+
 # *****************************************************************************************************
 # *****************************************************************************************************
 # *****************************************************************************************************
     
+# ------------------------------------------------------------------------------------------
+def plot_structure_simple(
+    Ad, # dense matrix 
+    flag_plots = True,
+    marker_size = 10,
+):
+    import matplotlib.pyplot as plt
+    def find_rows_columns(A):
+        N = A.shape[0]
+        rows_plot_1 = np.zeros(N*N)
+        cols_plot_1 = np.zeros(N*N)
+        N_nz_1 = 0
+        for ir in range(N):
+            for ic in range(N):
+                if np.abs(A[ir, ic]) > 0:
+                    N_nz_1 += 1
+                    rows_plot_1[N_nz_1-1] = ir
+                    cols_plot_1[N_nz_1-1] = ic
+        rows_plot_1 = rows_plot_1[0:N_nz_1]
+        cols_plot_1 = cols_plot_1[0:N_nz_1]
+        return rows_plot_1, cols_plot_1
+    # -------------------------------------------------
+    if not flag_plots:
+        return
+
+    N = Ad.shape[0]
+    rows_A, cols_A = find_rows_columns(Ad)
+
+    fig1 = plt.figure(figsize=(10,10))
+    ax = fig1.add_subplot(111)
+    ax.scatter(rows_A, cols_A, color="red", s = marker_size) 
+    plt.gca().invert_yaxis()
+    plt.xlim(-1,  N)
+    plt.ylim( N, -1)
+    plt.grid()
+    plt.show()
+    return
+
+
 # ------------------------------------------------------------------------------------------
 @jit(nopython=True)
 def compare_matrices_sparse(
@@ -1835,5 +1887,23 @@ def amax(x):
 # ------------------------------------------------------------------------------------------
 def sqrt_sum(x):
     return np.sqrt(np.sum(np.abs(x)**2))
+
+
+# ------------------------------------------------------------------------------------------
+# --- res = (A - B) ---
+@jit(nopython=True)
+def find_diff(A, B, res, prec = 1e-6):
+    N = A.shape[0]
+    if N != B.shape[0]:
+        print("<<< WARNING: The matrices have different structures. >>>")
+        return None
+    
+    for ir in range(N):
+        for ic in range(N):
+            e1 = A[ir, ic] - B[ir, ic]
+            if np.abs(e1) < prec:
+                e1 = 0.0
+            res[ir, ic] = e1
+    return res
 
 

@@ -39,7 +39,7 @@ def plot_A_structure(
         A, 
         name_A = "", label_A = "", 
         file_save = "", flag_save = False, path_save = None, 
-        fontsize = 24, marker_size = 160,
+        fontsize = 30, marker_size = 160,
         text_coord_label = [1, 14],
         text_coord_name_A = [12, 1],
 ):
@@ -130,7 +130,10 @@ def construct_UW_matrix_1D(x, F, flag_asin=False):
 
     for ir in range(Nx):
         Fr = F(x[ir])
-        ss_r = int(Fr/np.abs(Fr))
+        if np.abs(Fr) == 0:
+            ss_r = 0
+        else:
+            ss_r = int(Fr/np.abs(Fr))
         H_UW[ir, ir] = - 2. * ss_r * Fr
         ic  = ir - ss_r
         if ic >= 0 and ic < Nx:

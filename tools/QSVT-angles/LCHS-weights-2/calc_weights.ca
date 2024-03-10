@@ -1,0 +1,7 @@
+// to launch: $qucf_angles calc_weights
+
+filename_coefs  coefs/LCHS-weights-2_10_eps4
+output_name     kmax10_eps4_sel2
+
+stopping_criterion 1e-12
+

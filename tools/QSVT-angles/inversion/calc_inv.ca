@@ -3,7 +3,9 @@
 
 // The name of the file (without .hdf5 ) with coefficients describing 
 //		the polynomial approximation of the chosen function:
-filename_coefs    coefs/inversion_160.000000_11
+filename_coefs    coefs/inversion_700.000000_8
+output_name     ref-angles-5/k700_eps8
+
 
 // stopping parameter:
 stopping_criterion 1e-12
