@@ -160,6 +160,16 @@ def read_ref_QSVT_angles(id_case = 0, Ncoefs = 40):
         ]  
         id_comp_ = 8
 
+    # -------------------------------------------------------------------------
+    if id_case == 8:  
+        path_root_ref = "./tools/QSVT-angles/inversion/ref-angles-5"
+        filenames = []
+        for ii in range(300, 660, 10):
+            filenames.append(
+                "k{:d}_eps8.hdf5".format(ii)
+            )
+        id_comp_ = len(filenames) - 1
+
     # read the QSVT angles computed using the L-BFGS approach [Dong-21-DOI:10.1103/PhysRevA.103.042419]:
     dds_ = []
     for ii in range(len(filenames)):
