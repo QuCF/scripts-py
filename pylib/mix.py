@@ -1309,6 +1309,8 @@ def compare_matrices_dense(B, A, prec = 1e-6, flag_return_err = False):
                     return
     if flag_return_err:
         # print("max. abs. err: {:0.3e}".format(max_abs_err))
+        if max_abs_err <= 1e-21:
+            max_abs_err = 1e-21
         print("log10|max.err|: ", np.log10(max_abs_err))
     else:
         # print("The matrices are the same within the following precision: {:0.3e}".format(prec))

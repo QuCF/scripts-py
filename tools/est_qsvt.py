@@ -164,7 +164,7 @@ def read_ref_QSVT_angles(id_case = 0, Ncoefs = 40):
     if id_case == 8:  
         path_root_ref = "./tools/QSVT-angles/inversion/ref-angles-5"
         filenames = []
-        for ii in range(300, 660, 10):
+        for ii in range(10, 660, 10):
             filenames.append(
                 "k{:d}_eps8.hdf5".format(ii)
             )
@@ -602,7 +602,7 @@ def compute_coefs_Na(dds, Ncoefs, flag_save, path_save_plots):
         )
         ax.plot(
             kappas, Na_env_rec, 
-            "r:", linewidth = 2, marker = "o", 
+            "r-", linewidth = 3, 
             label = "- {:s}-maxs-reco".format(label_max)
         )
         plt.xlabel('kappa')
