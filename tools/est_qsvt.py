@@ -346,23 +346,93 @@ def plot_coefs_var_kappa(cns, cps, kappas, ids_ch_coef):
 
 # ---------------------------------------------------------------------------------------------
 # --- Compute coefficients of series approximating coefs-envelope for various kappa ---
-def test_func_FULL(x, a):
-    res_pol = 0.
-    Ncoefs = a.size
-    for ii in range(Ncoefs):
-        res_pol += a[ii] * np.cos(ii * np.arccos(x))
-    return res_pol
+# def test_func_kappa_coef_coef(x, a):
+#     res_pol = 0.
+#     Ncoefs = a.size
+#     res_pol = a[0]
+#     for ii in range(1, Ncoefs):
+#         res_pol += a[ii] * x**ii
+#     return res_pol
 
+# def np_test_func_kappa_coef_coef(x, a):
+#     Nx = len(x)
+#     Ncoefs = len(a)
+#     res_pol = np.zeros(Nx)
+#     for ix in range(Nx):
+#         res_pol[ix] = a[0]
+#         for ii in range(1, Ncoefs):
+#             res_pol[ix] += a[ii] * x[ix]**ii
+#     return res_pol
 
-def np_test_func_FULL(x, a):
-    Nx = len(x)
-    Ncoefs = len(a)
-    res_pol = np.zeros(Nx)
-    for ix in range(Nx):
-        res_pol[ix] = 0.
-        for ii in range(Ncoefs):
-            res_pol[ix] += a[ii] * np.cos(ii * np.arccos(x[ix]))
-    return res_pol
+# def compute_env_coefs_dependence_kappa(  
+#     Ncoefs_coefs,
+#     cns, cps, kappas,
+#     flag_reco = True
+# ):
+#     def approx_prof_coef(cs, id_coef):
+#         prof_coef = cs[:, id_coef]
+#         coefs_coefs = cp.Variable(Ncoefs_coefs)
+#         objective = cp.Minimize(cp.sum_squares(
+#             test_func_kappa_coef_coef(kappas, coefs_coefs) - prof_coef
+#         ))
+
+#         # _ = cp.Problem(objective).solve(solver=cp.OSQP)
+#         _ = cp.Problem(objective).solve(solver=cp.SCS)
+
+#         rec_prof = np_test_func_kappa_coef_coef(kappas, coefs_coefs.value)
+#         return coefs_coefs.value, rec_prof
+    
+#     # --------------------------------------------------------
+#     def plot_reco_coef_var_kappa(id_coef, cs_ref, reco_f, str_coef):
+#         fig = plt.figure(figsize=(FIG_SIZE_W_,FIG_SIZE_H_))
+#         ax = fig.add_subplot(111)
+#         ax.plot(
+#             kappas, cs_ref[:, id_coef],  
+#             color = "b", linewidth = 2, linestyle='-', marker = "o",
+#             label = "ref"
+#         )
+#         ax.plot(
+#             kappas, reco_f[id_coef,:],   
+#             color="r", linewidth = 2, linestyle=':', 
+#             label = "reco"
+#         )
+#         plt.xlabel('kappa')
+#         plt.title("{:s}-coef[{:d}](kappa)".format(str_coef, id_coef))
+#         plt.legend()
+#         plt.grid(True)
+#         plt.show()
+
+#         fig = plt.figure(figsize=(FIG_SIZE_W_,FIG_SIZE_H_))
+#         ax = fig.add_subplot(111)
+#         ax.plot(
+#             kappas, cs_ref[:, id_coef] - reco_f[id_coef,:],  
+#             color = "b", linewidth = 2, linestyle='-', 
+#             label = "ref"
+#         )
+#         plt.xlabel('kappa')
+#         plt.title("error: {:s}-coef[{:d}](kappa)".format(str_coef, id_coef))
+#         plt.legend()
+#         plt.grid(True)
+#         plt.show()
+#         return
+#     # --------------------------------------------------------
+#     Nk, Ncoefs = cns.shape
+
+#     # --- Approximate the dependence (with kappa) of each coefficient ---
+#     ccns = np.zeros((Ncoefs, Ncoefs_coefs))
+#     ccps = np.zeros((Ncoefs, Ncoefs_coefs))
+#     rfn = np.zeros((Ncoefs, Nk)) # reproduced coefs-neg-envelope for each kappa
+#     rfp = np.zeros((Ncoefs, Nk)) # reproduced coefs-pos-envelope for each kappa
+#     for i_coef in range(Ncoefs):
+#         ccns[i_coef, :], rfn[i_coef, :] = approx_prof_coef(cns, i_coef)
+#         ccps[i_coef, :], rfp[i_coef, :] = approx_prof_coef(cps, i_coef)
+
+#     # --- Plotting reconstructed coefficient for various kappa ---
+#     if flag_reco:
+#         id_coef_plot = 0
+#         plot_reco_coef_var_kappa(id_coef_plot, cns, rfn, "NEG")
+#         plot_reco_coef_var_kappa(id_coef_plot, cps, rfp, "POS")
+#     return ccns, ccps
 
 
 def compute_env_coefs_dependence_kappa(  
@@ -372,22 +442,24 @@ def compute_env_coefs_dependence_kappa(
 ):
     def approx_prof_coef(cs, id_coef):
         prof_coef = cs[:, id_coef]
-        x = np.linspace(0.0, 1.0, Nk)
         coefs_coefs = cp.Variable(Ncoefs_coefs)
         objective = cp.Minimize(cp.sum_squares(
-            test_func_FULL(x, coefs_coefs) - prof_coef
+            test_func_kappa_coef_coef(kappas, coefs_coefs) - prof_coef
         ))
-        prob = cp.Problem(objective)
-        result = prob.solve()
-        rec_prof = np_test_func_FULL(x, coefs_coefs.value)
+
+        # _ = cp.Problem(objective).solve(solver=cp.OSQP)
+        _ = cp.Problem(objective).solve(solver=cp.SCS)
+
+        rec_prof = np_test_func_kappa_coef_coef(kappas, coefs_coefs.value)
         return coefs_coefs.value, rec_prof
     
+    # --------------------------------------------------------
     def plot_reco_coef_var_kappa(id_coef, cs_ref, reco_f, str_coef):
         fig = plt.figure(figsize=(FIG_SIZE_W_,FIG_SIZE_H_))
         ax = fig.add_subplot(111)
         ax.plot(
             kappas, cs_ref[:, id_coef],  
-            color = "b", linewidth = 2, linestyle='-', 
+            color = "b", linewidth = 2, linestyle='-', marker = "o",
             label = "ref"
         )
         ax.plot(
@@ -414,26 +486,52 @@ def compute_env_coefs_dependence_kappa(
         plt.grid(True)
         plt.show()
         return
-
     # --------------------------------------------------------
     Nk, Ncoefs = cns.shape
 
-    # --- Approximate the dependence (with kappa) of each coefficient ---
-    # --- by a sequence of Chebyschev coefficients ---
-    ccns = np.zeros((Ncoefs, Ncoefs_coefs))
-    ccps = np.zeros((Ncoefs, Ncoefs_coefs))
-    rfn = np.zeros((Ncoefs, Nk)) # reproduced coefs-neg-envelope for each kappa
-    rfp = np.zeros((Ncoefs, Nk)) # reproduced coefs-pos-envelope for each kappa
-    for i_coef in range(Ncoefs):
-        ccns[i_coef, :], rfn[i_coef, :] = approx_prof_coef(cns, i_coef)
-        ccps[i_coef, :], rfp[i_coef, :] = approx_prof_coef(cps, i_coef)
+    prof = np.array(cps[:, 0])
 
-    # --- Plotting reconstructed coefficient for various kappa ---
-    if flag_reco:
-        id_coef_plot = 10
-        plot_reco_coef_var_kappa(id_coef_plot, cns, rfn, "NEG")
-        plot_reco_coef_var_kappa(id_coef_plot, cps, rfp, "POS")
-    return ccns, ccps
+    prof_coef_sort = np.sort(prof)[::-1]
+    ids_sort = np.argsort(prof)[::-1]
+
+    N = 4
+
+    fig = plt.figure(figsize=(FIG_SIZE_W_,FIG_SIZE_H_))
+    ax = fig.add_subplot(111)
+    ax.plot(
+        kappas[ids_sort[:N]], prof_coef_sort[:N],  
+        color = "b", linewidth = 2, linestyle=':', marker = "o",
+        label = "maximums"
+    )
+    ax.plot(
+        kappas, prof,   
+        color="r", linewidth = 2, linestyle=':', 
+        label = "init"
+    )
+    plt.xlabel('kappa')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+
+
+
+    # # --- Approximate the dependence (with kappa) of each coefficient ---
+    # ccns = np.zeros((Ncoefs, Ncoefs_coefs))
+    # ccps = np.zeros((Ncoefs, Ncoefs_coefs))
+    # rfn = np.zeros((Ncoefs, Nk)) # reproduced coefs-neg-envelope for each kappa
+    # rfp = np.zeros((Ncoefs, Nk)) # reproduced coefs-pos-envelope for each kappa
+    # for i_coef in range(Ncoefs):
+    #     ccns[i_coef, :], rfn[i_coef, :] = approx_prof_coef(cns, i_coef)
+    #     ccps[i_coef, :], rfp[i_coef, :] = approx_prof_coef(cps, i_coef)
+
+    # # --- Plotting reconstructed coefficient for various kappa ---
+    # if flag_reco:
+    #     id_coef_plot = 0
+    #     plot_reco_coef_var_kappa(id_coef_plot, cns, rfn, "NEG")
+    #     plot_reco_coef_var_kappa(id_coef_plot, cps, rfp, "POS")
+    return [], []
+
 
 
 # ---------------------------------------------------------------------------------------------
@@ -460,6 +558,7 @@ def reconstruct_CEs_kappa(id_case, dds, cns, cps, kappas):
         ax.plot(x_axis, cs_ref,  color = "b", linewidth = 2, linestyle='-', label = "coefs-ref")
         ax.plot(x_axis, cs_reco, color="r",   linewidth = 2, linestyle=':', label = "coefs-reco")
         plt.xlabel('i')
+        plt.xlabel('coefs')
         plt.title("{:s}-coefs".format(str_coef))
         plt.legend()
         plt.grid(True)
@@ -473,6 +572,7 @@ def reconstruct_CEs_kappa(id_case, dds, cns, cps, kappas):
             label = "ref"
         )
         plt.xlabel('i')
+        plt.ylabel('error')
         plt.title("{:s}: ref-reco".format(str_coef))
         plt.legend()
         plt.grid(True)
@@ -562,19 +662,17 @@ def compute_coefs_amplitudes(dds, Ncoefs, flag_save, path_save_plots):
 def compute_Na(k, coef_Na_env):
         res_pol = coef_Na_env[0]
         for ii in range(1,len(coef_Na_env)):
-            res_pol += coef_Na_env[ii] * k**ii * np.log(k**ii)
+            # res_pol += coef_Na_env[ii] * k**ii * np.log(k**ii)
+            res_pol += coef_Na_env[ii] * k**ii
         return int(res_pol)
 
 
 def compute_coefs_Na(dds, Ncoefs, flag_save, path_save_plots):
-    def test_func(k, coefs):
+    def test_func(k, coefs): # should be similar to compute_Na(...)
         res_pol = coefs[0]
         for ii in range(1,Ncoefs):
-            res_pol += coefs[ii] * cp.multiply(
-                k**ii, 
-                # cp.log(k**ii)/cp.log(10)
-                cp.log(k**ii)
-            )
+            # res_pol += coefs[ii] * cp.multiply(k**ii, cp.log(k**ii))
+            res_pol += coefs[ii] * k**ii
         return res_pol 
     
     def est_coefs(Na_env, label_max):

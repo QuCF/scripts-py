@@ -307,6 +307,33 @@ def LCHS_computation(k, dt, Hi, psi_init, Nt_loc, flag_trotterization, flag_prin
 
 
 # ------------------------------------------------------------------------------------------------
+def LCHS_computation_FAKE(k, dt, Hi, psi_init, Nt_loc):
+    # k-grid:
+    dk = np.diff(k)[0]
+    Nk = len(k)
+
+    # matrices:
+    Bh, _ = get_herm_aherm_parts(Hi)
+    wk = comp_LCHS_weights(k)
+    N = Hi.shape[0]
+    
+    exp_LCHS = np.zeros((N,N), dtype=complex)
+    for ik in range(Nk):
+        temp = np.identity(N, dtype=complex)
+        Prop_k = -1.j * dt * (ik * dk) * Bh
+        exp_dt = expm(Prop_k)
+            
+        for _ in range(Nt_loc):
+            temp = exp_dt.dot(temp)
+        exp_LCHS += wk[ik] * temp
+    del temp, Prop_k, exp_dt, ik
+           
+    # compute the output quantum state:
+    psi_t = exp_LCHS.dot(psi_init)
+    return psi_t
+
+
+# ------------------------------------------------------------------------------------------------
 def analyse_exp_matrices(exp_1, exp_2):
     print("\n--- Exponentiation matrices ---")
     print(exp_1)
