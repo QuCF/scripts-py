@@ -313,7 +313,11 @@ def compute_coefs_var_kappa(dds, Ncoefs):
 
 # ---------------------------------------------------------------------------------------------
 # --- Plot coefficients-envelope for various kappa ---
-def plot_coefs_var_kappa(cns, cps, kappas, ids_ch_coef):
+def plot_coefs_var_kappa(
+        cns, cps, kappas, ids_ch_coef, 
+        path_save_plots, flag_save = False,
+        flag_shifted = False
+    ):
     def plot_one_coef(coefs_arr, str_coef):
         colors = ["b", "r", "g", "orange", "magenta", "black"]
 
@@ -325,6 +329,9 @@ def plot_coefs_var_kappa(cns, cps, kappas, ids_ch_coef):
             counter_1 += 1
             for i_kappa in range(len(coefs_arr)):
                 coefs[i_kappa] = coefs_arr[i_kappa][id_ch_coef]
+                if flag_shifted:
+                    if counter_1 != 1:
+                        coefs[i_kappa] += coefs_arr[0][1] - coefs_arr[0][counter_1]
             ax.plot(
                 kappas, 
                 coefs, 
@@ -332,11 +339,32 @@ def plot_coefs_var_kappa(cns, cps, kappas, ids_ch_coef):
                 label = "coefs-{:s}[{:d}]".format(str_coef, id_ch_coef)
 
             )
+
+            if flag_save:
+                mix.save_dat_plot_1d_file(
+                    path_save_plots + "/coefs_{:s}_env_kappa_c{:d}.dat".format(
+                        str_coef, id_ch_coef
+                    ), 
+                    kappas, 
+                    coefs
+                )
         plt.xlabel('kappa')
         plt.ylabel("coefs-{:s}".format(str_coef))
         plt.grid(True)
         plt.legend()
         plt.show()     
+
+        # if flag_save:
+        #     for id_ch_coef in ids_ch_coef:
+        #         for i_kappa in range(len(coefs_arr)):
+        #             coefs[i_kappa] = coefs_arr[i_kappa][id_ch_coef]
+        #         mix.save_dat_plot_1d_file(
+        #             path_save_plots + "/coefs_{:s}_env_kappa_c{:d}.dat".format(
+        #                 str_coef, id_ch_coef
+        #             ), 
+        #             kappas, 
+        #             coefs
+        #         )
         return
     # ------------------------------------------------------------------
     plot_one_coef(cps, "POS")

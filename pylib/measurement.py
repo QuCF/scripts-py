@@ -121,6 +121,8 @@ class MeasOracle__:
 
             self.dd_["nq"] = bg["nq"][()]
             self.dd_["na"] = bg["na"][()]
+            if "N_gates" in bg:
+                self.dd_["N-gates"] = bg["N_gates"][()]
 
             reg_names = bg["register-names"][()].decode("utf-8").split(", ")
             reg_nq = bg["register-nq"][...]
@@ -292,9 +294,10 @@ class MeasOracle__:
         self.dd_[name_qsp]["dt"] = gr["dt"][()]
         self.dd_[name_qsp]["nt"] = gr["nt"][()]
 
-        print("\n--- QSP: {:s} ---".format(name_qsp))
-        print("dt: {:0.3f}".format(self.dd_[name_qsp]["dt"]))
-        print("nt: {:0.3f}".format(self.dd_[name_qsp]["nt"]))
+        if self.__flag_print_:
+            print("\n--- QSP: {:s} ---".format(name_qsp))
+            print("dt: {:0.3f}".format(self.dd_[name_qsp]["dt"]))
+            print("nt: {:0.3f}".format(self.dd_[name_qsp]["nt"]))
         return
     
 
@@ -311,7 +314,7 @@ class MeasOracle__:
     # "vars_enc" is {"reg_name_1": int_to_choose, ...};
     # "reg_x" is the register name  where different combinations of qubits
     #           correspond to different points on x.
-    # All other registers are set to zero.
+    # All OTHER registers are set to ZERO.
     # -----------------------
     # Prior to launch this function, one needs to call either set_zero_ancillae_work_states()
     #   or set_work_states()
