@@ -23,6 +23,178 @@ def reload():
     return
 
 
+
+def get_initial_state():
+    psi_init = np.zeros(2, dtype = complex)
+    psi_init[0] = np.sqrt(0.0)
+    psi_init[1] = np.sqrt(1.0)
+    return psi_init
+
+
+def compute_angles_initialization(psi_init):
+    ay_init = 2*np.arccos(psi_init.real[0])
+    print("ay_init  {:0.12e}".format(ay_init))
+    return
+
+
+def get_case_Hi(sel_case):
+    if sel_case == 1 or sel_case == 10:
+        return case_1()
+    if sel_case == 2 or sel_case == 20:
+        return case_2()
+    if sel_case == 3:
+        return case_3()
+    if sel_case == 4:
+        return case_4()
+    if sel_case == 5:
+        return case_5()
+    
+    print("!!! ERROR: sel_case = {:d} is not recognized. !!!".format(sel_case))
+    return None
+
+
+def case_1():
+    print("--- CASE 1 or 10: Slight non-Hermiticity ---")
+    H_orig = np.ones((2, 2), dtype=complex)
+    H_orig[0,0] = 1 - 0.0001j
+    H_orig[0,1] = 2
+    H_orig[1,0] = 2
+    H_orig[1,1] = 1
+    
+    print("\n*** Original Hamiltonian (without mult. by i)***")
+    mix.print_matrix(H_orig)
+    
+    Hi = 1j*H_orig
+    return Hi
+
+
+def case_2():
+    print("--- CASE 2 or 20: Strong non-Hermiticity ---")
+    H_orig = np.ones((2, 2), dtype=complex)
+    H_orig[0,0] = 1 - 1.0j
+    H_orig[0,1] = 2
+    H_orig[1,0] = 2
+    H_orig[1,1] = 1
+    
+    print("\n*** Original Hamiltonian (without mult. by i)***")
+    mix.print_matrix(H_orig)
+    
+    Hi = 1j*H_orig
+    return Hi
+
+
+def case_3():
+    print("--- Case 3: both variables are dissipative ---")
+    H_orig = np.ones((2, 2), dtype=complex)
+    H_orig[0,0] = 1 - 0.4j
+    H_orig[0,1] = 2
+    H_orig[1,0] = 2
+    H_orig[1,1] = 1 - 0.4j
+    
+    print("\n*** Original Hamiltonian (without mult. by i)***")
+    mix.print_matrix(H_orig)
+    
+    Hi = 1j*H_orig
+    return Hi
+
+
+def case_4():
+    print("--- Case 4: all matrix elements are complex ---")
+    H_orig = np.ones((2, 2), dtype=complex)
+    H_orig[0,0] = 1 - 0.2j
+    H_orig[0,1] = 2 - 0.1j
+    H_orig[1,0] = 2 - 0.4j
+    H_orig[1,1] = 1 - 0.3j
+    
+    print("\n*** Original Hamiltonian (without mult. by i)***")
+    mix.print_matrix(H_orig)
+    
+    Hi = 1j*H_orig
+    return Hi
+
+
+def case_5():
+    print("--- CASE 5: Growing non-Hermiticity ---")
+    H_orig = np.ones((2, 2), dtype=complex)
+    H_orig[0,0] = 1 + 0.01j
+    H_orig[0,1] = 2
+    H_orig[1,0] = 2
+    H_orig[1,1] = 1
+    
+    print("\n*** Original Hamiltonian (without mult. by i)***")
+    mix.print_matrix(H_orig)
+    
+    Hi = 1j*H_orig
+    return Hi
+
+
+# input: Hi = i*H:
+def ref_computation(t, Hi, psi_init):
+    def calc_y(t,y):
+        y = -Hi.dot(y) 
+        return y
+    
+    Nt = len(t)
+    dt = np.diff(t)[0]
+    
+    psi_out = np.zeros((Nt,2), dtype=complex)
+    psi_out[0,0] = psi_init[0]
+    psi_out[0,1] = psi_init[1]
+    
+    oo = RK45(calc_y, t[0], psi_out[0,:], t[-1], first_step=dt, max_step=dt)
+    Nt_act = 0
+    oo.step() # skip one time step
+    while mix.compare_two_strings(oo.status, "running"):
+        oo.step()
+        Nt_act += 1
+        psi_out[Nt_act,:] = oo.y
+    print()
+    print("--- refence computation ---")
+    print("sum psi[RK-max-time]**2: {:0.3e}".format(np.sum(np.abs(psi_out[Nt_act,:])**2)))
+    return psi_out
+
+
+def compare_plots_ref_LCHS_py(t, t_plot, psi_ref, psi_LCHS, id_var):
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+
+    # --- REAL PART ---
+    ax.plot(t,      psi_ref.real[:,id_var],  "-b", linewidth = 2, label="Re: ref")
+    ax.plot(t,      psi_ref.imag[:,id_var],  "-r", linewidth = 2, label="Im: ref")
+    ax.plot(t_plot, psi_LCHS.real[:,id_var], 
+        "b", marker = "o", linestyle='None', linewidth = 2, markerfacecolor='None', 
+        label="Re: LCHS"
+    )
+    ax.plot(t_plot, psi_LCHS.imag[:,id_var], 
+        "r", marker = "o", linestyle='None', linewidth = 2, markerfacecolor='None', 
+        label="Im: LCHS"
+    )
+    plt.xlabel('$t$')
+    plt.ylabel("Re: " + "var[{:d}]".format(id_var))
+    ax.legend()
+    plt.grid(True)
+    plt.show()
+    return
+
+
+def plot_one_sim(t, psi):
+    fig = plt.figure()
+    ax = fig.add_subplot(111)   
+    ax.plot(t, psi.real[:,0], "-b", linewidth = 2, label="Re var1")
+    ax.plot(t, psi.real[:,1], "-r", linewidth = 2, label="Re var2")
+
+    ax.plot(t, psi.imag[:,0], "--", color = "gray", linewidth = 2, label="Im var1")
+    ax.plot(t, psi.imag[:,1], "--", color = "green", linewidth = 2, label="Im var2")
+
+    plt.xlabel('$t$')
+    plt.ylabel("psi")
+    ax.legend()
+    plt.grid(True)
+    plt.show()
+    return
+
+
+
 def is_Hermitian(A, name):
     return mix.is_Hermitian(A, name)
 
@@ -307,6 +479,71 @@ def LCHS_computation(k, dt, Hi, psi_init, Nt_loc, flag_trotterization, flag_prin
 
 
 # ------------------------------------------------------------------------------------------------
+def LCHS_computation_FAKE(k, dt, Hi, psi_init, Nt_loc):
+    # k-grid:
+    dk = np.diff(k)[0]
+    Nk = len(k)
+
+    # matrices:
+    Bh, _ = get_herm_aherm_parts(Hi)
+    wk = comp_LCHS_weights(k)
+    N = Hi.shape[0]
+    
+    exp_LCHS = np.zeros((N,N), dtype=complex)
+    for ik in range(Nk):
+        temp = np.identity(N, dtype=complex)
+        Prop_k = -1.j * dt * (ik * dk) * Bh
+        exp_dt = expm(Prop_k)
+            
+        for _ in range(Nt_loc):
+            temp = exp_dt.dot(temp)
+        # exp_LCHS += wk[ik] * temp
+        exp_LCHS += temp
+    del temp, Prop_k, exp_dt, ik
+           
+    # compute the output quantum state:
+    psi_t = exp_LCHS.dot(psi_init)
+    return psi_t
+
+
+# ------------------------------------------------------------------------------------------------
+def comp_LCMI_weights(k, t):
+    dk = np.diff(k)[0]
+    Nk = len(k)
+
+    wk = np.zeros(Nk, dtype=complex)
+    for ik in range(Nk):
+        wk[ik] = np.exp(-1.j * k[ik] * t)
+    wk = wk * dk/(2 * np.pi)
+    return wk
+
+
+# ------------------------------------------------------------------------------------------------
+def LCMI_computation(k, A, psi_init, t_sim):
+    from numpy.linalg import inv as inv_matrix
+
+    # --- weights ---
+    wk = comp_LCMI_weights(k, t_sim)
+
+    # --- sum of inverse matrices ---
+    N = A.shape[0]
+    exp_LCMI = np.zeros((N,N), dtype=complex)
+    
+    Nk = len(k)
+    # print(A)
+    # print()
+    for ik in range(Nk):
+        B = 1j * k[ik] * np.ones(N) + A
+        # print(B)
+        B_inv = inv_matrix(B)
+        exp_LCMI += wk[ik] * B_inv
+        
+    # --- compute the output quantum state ---
+    psi_t = exp_LCMI.dot(psi_init)
+    return psi_t
+
+
+# ------------------------------------------------------------------------------------------------
 def analyse_exp_matrices(exp_1, exp_2):
     print("\n--- Exponentiation matrices ---")
     print(exp_1)
@@ -340,20 +577,36 @@ def get_diag(A, i_shift):
 
 
 # ------------------------------------------------------------------------------------------------
-def compute_norm_matrices_LCHS(Aa, Ah, kmax, dk):
+def compute_norm_matrices_LCHS(
+        Aa, Ah, kmax, dk, 
+        t_step = None,
+        factor_global_a    = 1.0,
+        factor_global_kmax = 1.0,
+        factor_global_k    = 1.0,
+):
     Ba     = Aa
     B_kmax = - kmax * Ah
     Bk     =     dk * Ah
 
     # --- Normalize the matrices ---
-    Ba_norm_,     ncoef_a_,    nonsparsity_a_    = mix.compute_normalized_matrix(Ba,     "Ba")
-    B_kmax_norm_, ncoef_kmax_, nonsparsity_kmax_ = mix.compute_normalized_matrix(B_kmax, "B_kmax")
-    Bk_norm_,     ncoef_k_,    nonsparsity_k_    = mix.compute_normalized_matrix(Bk,     "Bk")
+    Ba_norm,     ncoef_a,    nonsparsity_a_    = mix.compute_normalized_matrix(Ba,     "Ba")
+    B_kmax_norm, ncoef_kmax, nonsparsity_kmax_ = mix.compute_normalized_matrix(B_kmax, "B_kmax")
+    Bk_norm,     ncoef_k,    nonsparsity_k_    = mix.compute_normalized_matrix(Bk,     "Bk")
     print()
-    print("norm of Ba_norm_:     {:0.3f}".format(mix.find_norm_of_matrix(Ba_norm_)))
-    print("norm of B_kmax_norm_: {:0.3f}".format(mix.find_norm_of_matrix(B_kmax_norm_)))
-    print("norm of Bk_norm_:     {:0.3f}".format(mix.find_norm_of_matrix(Bk_norm_)))
-    return Ba_norm_, B_kmax_norm_, Bk_norm_
+    print("norm of Ba_norm_:     {:0.3f}".format(mix.find_norm_of_matrix(Ba_norm)))
+    print("norm of B_kmax_norm_: {:0.3f}".format(mix.find_norm_of_matrix(B_kmax_norm)))
+    print("norm of Bk_norm_:     {:0.3f}".format(mix.find_norm_of_matrix(Bk_norm)))
+
+    # --- Time steps ---
+    if t_step is not None:
+        dt_a    = ncoef_a    * t_step / 2. * factor_global_a
+        dt_kmax = ncoef_kmax * t_step      * factor_global_kmax
+        dt_k    = ncoef_k    * t_step      * factor_global_k
+        print("\n--- Time steps ---")
+        print("dt_a:    {:0.6e}".format(dt_a))
+        print("dt_kmax: {:0.6e}".format(dt_kmax))
+        print("dt_k:    {:0.6e}".format(dt_k))
+    return Ba_norm, B_kmax_norm, Bk_norm
 
 
 
