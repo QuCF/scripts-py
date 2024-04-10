@@ -609,7 +609,6 @@ def compute_norm_matrices_LCHS(
     return Ba_norm, B_kmax_norm, Bk_norm
 
 
-
 # ------------------------------------------------------------------------------------------------
 def plot_save_diagonals(A_plot, A_name, flag_save, flag_save_real, path_save):
 
