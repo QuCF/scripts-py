@@ -696,8 +696,16 @@ def Ep(phi,theta):
 
 # ------------------------------------------------------------------------------------------
 # --- *Lib6*: I/O ---
-def print_array(A, ff=[13, 3, "f"], n_in_row = 7, flag_remove_zeros=False, coef_remove_zeros=G_zero_err):
-    ff_line = "{:" + str(ff[0]) + "." + str(ff[1]) + ff[2] + "}"
+def print_array(
+        A, ff=[13, 3, "f"], n_in_row = 7, 
+        flag_remove_zeros=False, coef_remove_zeros=G_zero_err,
+        flag_comma = False
+    ):
+    if ff[2] == "d":
+        ff_line = "{:d}"
+    else:
+        ff_line = "{:" + str(ff[0]) + "." + str(ff[1]) + ff[2] + "}"
+        
     str_out = ''
     for ii, a1 in enumerate(A):
         ff_res = ff_line
@@ -706,7 +714,12 @@ def print_array(A, ff=[13, 3, "f"], n_in_row = 7, flag_remove_zeros=False, coef_
             ff_res = "{:" + str(ff[0]) + "." + str(ff[1]) + "f}"
         if np.mod(ii,n_in_row) == 0 and ii > 0:
             str_out +="\n"
-        str_out += ff_res.format(a1) + " "
+        if not flag_comma:
+            str_out += ff_res.format(a1) + " "
+        else:
+            str_out += ff_res.format(a1)
+            if ii < (len(A)-1):
+                str_out += ", "
     print(str_out)
 
 
@@ -1809,15 +1822,18 @@ def get_diag(A, i_shift):
 
 # ------------------------------------------------------------------------------------------
 # Normalize a dense matrix.
-def compute_normalized_matrix(A, name_A):
+def compute_normalized_matrix(A, name_A, flag_include_norm_less_one = False):
     nonsparsity = find_nonsparsity(A)
     if nonsparsity == 0:
         return A, 1.0, 0.0
     final_norm = nonsparsity
     
     coef_norm_A = find_norm_of_matrix(A)
-    if coef_norm_A > 1:
+    if flag_include_norm_less_one:
         final_norm *= coef_norm_A  
+    else:
+        if coef_norm_A > 1:
+            final_norm *= coef_norm_A  
     A_norm = A / final_norm
     print("Matrix {:s}:\t nonsparsity, coefnorm: {:d}, {:0.3e}".format(name_A, nonsparsity, final_norm))
     return A_norm, final_norm, nonsparsity

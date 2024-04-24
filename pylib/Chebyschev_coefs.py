@@ -19,8 +19,9 @@ class Ch_:
     # the chosen function:
     func_ch_ = None
 
-    # the parameter of the approximated function:
+    # the parameters of the approximated function:
     par_ = None
+    par_2_ = None
 
     # the function parity:
     parity_  = None
@@ -204,7 +205,7 @@ class Ch_:
             self.coef_norm_ = 1.0
             self.parity_ = parity_in
             self.line_f_ = name_prof
-            self.line_par_ = ""
+            self.line_par_ = "{:d}".format(int(self.par_))
             if x_grid is not None:
                 self.x_ = np.array(x_grid)
 
@@ -249,13 +250,16 @@ class Ch_:
             self.line_f_ = "LCHS-weights"
             self.line_par_ = "{:d}".format(int(self.par_))
 
-        if self.id_fun_ == 41:
-            self.path_root_ ="./tools/QSVT-angles/LCHS-weights-2/coefs/"
-            self.coef_norm_ = 1.0 - 1.e-4
-            self.func_ch_ = self.func_LCHS_weights_2
-            self.parity_ = 0
-            self.line_f_ = "LCHS-weights-2"
-            self.line_par_ = "{:d}".format(int(self.par_))
+        # if self.id_fun_ == 5: # Uniform Singular Value Amplification 
+        #     # par_ = gamma (amplifacation coef.)
+        #     # par_2_ = delta (used to define the interval where the amplifcation occurs)
+        #     self.path_root_ = "./tools/QSVT-angles/USVA/coefs/"
+        #     self.coef_norm_ = 1.0 - 1.e-3
+        #     self.func_ch_ = self.func_USVA
+        #     self.parity_ = 0
+        #     self.line_f_ = "USVA"
+        #     self.line_par_ = "{:d}".format(int(self.par_))
+
 
         if self.id_fun_ == 10:
             self.series_coefs_ = series_coefs
@@ -265,6 +269,14 @@ class Ch_:
             self.func_ch_ = self.series_x
             self.line_f_ = name_prof
             self.line_par_ = "Nc{:d}".format(len(self.series_coefs_))
+
+        if self.id_fun_ == 41:
+            self.path_root_ ="./tools/QSVT-angles/LCHS-weights-2/coefs/"
+            self.coef_norm_ = 1.0 - 1.e-4
+            self.func_ch_ = self.func_LCHS_weights_2
+            self.parity_ = 0
+            self.line_f_ = "LCHS-weights-2"
+            self.line_par_ = "{:d}".format(int(self.par_))
 
 
         # --- Take the test and reconstruction functions appropriate to the chosen parity ---
@@ -329,8 +341,8 @@ class Ch_:
         else:
             print("Error: unknown method selector.")
 
-        print("x[0] = ", self.x_[0])
-        print("x[-1] = ", self.x_[-1])
+        # print("x[0] = ", self.x_[0])
+        # print("x[-1] = ", self.x_[-1])
 
         # reconstruct the function:
         self.y_rec_ = self.rec_func_(self.x_, self.coefs_)
@@ -351,6 +363,7 @@ class Ch_:
             self.test_func_(self.x_, coefs) - self.y_ref_
         ))
         prob = cp.Problem(objective)
+        # prob = cp.Problem(objective, [self.test_func_(self.x_, coefs) <= 0.90])
         result = prob.solve()
         print("Computation status: ", result)
         print()
@@ -421,11 +434,19 @@ class Ch_:
         else:
             rx = np.array(range(1, self.Nd_+1,2))
 
+        if len(rx) > len(self.coefs_):
+            rx = rx[0:len(rx)-1]
+
         label_coef = None
         if self.sel_method_ == 0 or self.sel_method_ == 2:
             label_coef = "min"
         if self.sel_method_ == 1:
             label_coef = "direct"
+
+        # print()
+        # print(len(rx))
+        # print(len(self.coefs_))
+        # print()
 
         fig = plt.figure()
         ax = fig.add_subplot(111)
@@ -465,7 +486,7 @@ class Ch_:
         full_fname = self.path_root_ + "/" + fname_
 
         # --- Store data ---
-        print("write angles to:\n " + full_fname)
+        print("write coefficients to:\n " + full_fname)
         with h5py.File(full_fname, "w") as f:
             grp = f.create_group("basic")
             grp.create_dataset('coef_norm',           data=float(self.coef_norm_))
@@ -478,6 +499,27 @@ class Ch_:
             grp = f.create_group("coefs")
             grp.create_dataset('real',  data = self.coefs_)  
         return  
+    
+    # --- Instead of computing the coefficients, set the precomputed coefficients ---
+    def set_data(self, 
+        name, path_root, 
+        coefs, parity, param, 
+        max_abs_err, coef_norm,
+        Nd
+    ):
+        self.line_f_    = name
+        self.path_root_ = path_root
+        self.coefs_ = np.array(coefs)
+        self.parity_ = parity
+        self.par_ = param
+        if self.par_ is not None:
+            self.line_par_ = "{:d}".format(int(self.par_))
+        else:
+            self.line_par_ = ""
+        self.max_abs_err_ = max_abs_err
+        self.coef_norm_ = coef_norm
+        self.Nd_ = Nd
+        return
 
 
     # --- Reproduce the function using sin(x)-grid ---
