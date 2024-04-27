@@ -25,8 +25,6 @@ def reload():
 
 def get_dk(norm_Ah_in, norm_Aa_in, t_in, n_dk):
     # dk_res = 0.01 * 2.*np.pi / (norm_Ah_in * t_in)
-    # if dk_res >= 2. * k_max_in:
-    #     dk_res = 2. * 10 / (1<<(5 + n_dk) - 1)
 
     # --- fix dk [defined by n_dk] ---
     # REMARK: for very large norm_Ah or t, dk should be inverse to these values, 

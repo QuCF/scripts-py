@@ -90,15 +90,26 @@ class ASE_:
         return
 
 
-    def read_plasma_matrices(self):
+    def read_plasma_matrices(self, flag_diff_zero_too = False):
         self.cl_ = {}
         print()
+
+        # --- classical simulations with eta = -0.002 ---
         self.cl_["33"] = read_matrix_sparse(self.path_cl_, "out_3_3_w1.2_Lx100_Lv4_flat.hdf5")
-        for ii in range(4, 9):
-            for kk in range(4, 9):
-                self.cl_["{:d}{:d}".format(ii, kk)] = read_matrix_sparse(
-                    self.path_cl_, "out_{:d}_{:d}_w1.2_Lx100_Lv4_flat.hdf5".format(ii, kk)
+        for ix in range(4, 10):
+            for iv in range(4, 9):
+                self.cl_["{:d}{:d}".format(ix, iv)] = read_matrix_sparse(
+                    self.path_cl_, "out_{:d}_{:d}_w1.2_Lx100_Lv4_flat.hdf5".format(ix, iv)
                 )
+
+        # --- classical simulations with eta = 0.0 ---
+        if flag_diff_zero_too:
+            for ix in range(4, 10):
+                for iv in range(4, 8):
+                    self.cl_["{:d}{:d}-diff-zero".format(ix, iv)]= read_matrix_sparse(
+                        self.path_cl_ + "/w12-zero-diff/", 
+                        "out_{:d}_{:d}_w1.2_Lx100_Lv4_flat.hdf5".format(ix, iv)
+                    )
         return
     
 
