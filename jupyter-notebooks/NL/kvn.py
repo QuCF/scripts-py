@@ -26,8 +26,12 @@ def reload():
 
 def get_initial_state():
     psi_init = np.zeros(2, dtype = complex)
-    psi_init[0] = np.sqrt(0.0)
-    psi_init[1] = np.sqrt(1.0)
+    # psi_init[0] = np.sqrt(0.0)
+    # psi_init[1] = np.sqrt(1.0)
+
+    psi_init[0] = np.sqrt(1./2.0)
+    psi_init[1] = np.sqrt(1./2.0)
+
     return psi_init
 
 
@@ -38,9 +42,9 @@ def compute_angles_initialization(psi_init):
 
 
 def get_case_Hi(sel_case):
-    if sel_case == 1 or sel_case == 10:
+    if sel_case == 1 or sel_case == 10 or sel_case == 100:
         return case_1()
-    if sel_case == 2 or sel_case == 20:
+    if sel_case == 2 or sel_case == 20 or sel_case == 200:
         return case_2()
     if sel_case == 3:
         return case_3()
@@ -54,30 +58,30 @@ def get_case_Hi(sel_case):
 
 
 def case_1():
-    print("--- CASE 1 or 10: Slight non-Hermiticity ---")
+    print("--- Slight non-Hermiticity ---")
     H_orig = np.ones((2, 2), dtype=complex)
     H_orig[0,0] = 1 - 0.0001j
     H_orig[0,1] = 2
     H_orig[1,0] = 2
     H_orig[1,1] = 1
     
-    print("\n*** Original Hamiltonian (without mult. by i)***")
-    mix.print_matrix(H_orig)
+    # print("\n*** Original Hamiltonian (without mult. by i)***")
+    # mix.print_matrix(H_orig)
     
     Hi = 1j*H_orig
     return Hi
 
 
 def case_2():
-    print("--- CASE 2 or 20: Strong non-Hermiticity ---")
+    print("--- Strong non-Hermiticity ---")
     H_orig = np.ones((2, 2), dtype=complex)
     H_orig[0,0] = 1 - 1.0j
     H_orig[0,1] = 2
     H_orig[1,0] = 2
     H_orig[1,1] = 1
     
-    print("\n*** Original Hamiltonian (without mult. by i)***")
-    mix.print_matrix(H_orig)
+    # print("\n*** Original Hamiltonian (without mult. by i)***")
+    # mix.print_matrix(H_orig)
     
     Hi = 1j*H_orig
     return Hi
@@ -442,21 +446,24 @@ def LCHS_computation(k, dt, Hi, psi_init, Nt_loc, flag_trotterization, flag_prin
     exp_LCHS = np.zeros((N,N), dtype=complex)
     for ik in range(Nk):
         temp = np.identity(N, dtype=complex)
-        
-        exp_dt = None
-        if not flag_trotterization:
-            Prop_k = -1.j * dt * (Ba + k[ik]*Bh) # here, use Trotterization
-            exp_dt = expm(Prop_k)
-        else:
-            Prop_k = -1.j * dt * (ik * dk) * Bh
-            exp_dt = exp_max.dot(expm(Prop_k))
-            exp_dt = exp_dt.dot(exp_Ba)
-            exp_dt = exp_Ba.dot(exp_dt)
-            
-        for it in range(Nt_loc):
-            temp = exp_dt.dot(temp)
+        if Nt_loc > 0:
+            exp_dt = None
+            if not flag_trotterization:
+                Prop_k = -1.j * dt * (Ba + k[ik]*Bh) # here, use Trotterization
+                exp_dt = expm(Prop_k)
+            else:
+                Prop_k = -1.j * dt * (ik * dk) * Bh
+                exp_dt = exp_max.dot(expm(Prop_k))
+                exp_dt = exp_dt.dot(exp_Ba)
+                exp_dt = exp_Ba.dot(exp_dt)
+                
+            for it in range(Nt_loc):
+                temp = exp_dt.dot(temp)
         exp_LCHS += wk[ik] * temp
-    del temp, Prop_k, exp_max, exp_Ba, exp_dt, ik
+    if Nt_loc > 0:
+        del temp, Prop_k, exp_max, exp_Ba, exp_dt, ik
+    else:
+        del temp, exp_max, exp_Ba, ik
          
     # compare the exponentiating matrices:
     if flag_print:
@@ -607,7 +614,6 @@ def compute_norm_matrices_LCHS(
         print("dt_kmax: {:0.6e}".format(dt_kmax))
         print("dt_k:    {:0.6e}".format(dt_k))
     return Ba_norm, B_kmax_norm, Bk_norm
-
 
 
 # ------------------------------------------------------------------------------------------------

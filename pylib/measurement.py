@@ -257,7 +257,7 @@ class MeasOracle__:
         return
 
 
-    def read_qsvt(self):
+    def read_qsvt(self, flag_print=False):
         with h5py.File(self.dd_["fname"], "r") as f:
             gr_qsvt = f["qsvt"]
 
@@ -286,15 +286,15 @@ class MeasOracle__:
                 self.dd_[name_qsvt]["par"] = gr_one["function-parameter"][()]
                 self.dd_[name_qsvt]["rescaling_factor"] = gr_one["rescaling_factor"][()]
                 if self.dd_[name_qsvt]["type"] == "QSP-ham":
-                    self.read_qsp_hamiltonian_parameters(name_qsvt, gr_one) 
+                    self.read_qsp_hamiltonian_parameters(name_qsvt, gr_one, flag_print) 
         return
 
 
-    def read_qsp_hamiltonian_parameters(self, name_qsp, gr):
+    def read_qsp_hamiltonian_parameters(self, name_qsp, gr, flag_print):
         self.dd_[name_qsp]["dt"] = gr["dt"][()]
         self.dd_[name_qsp]["nt"] = gr["nt"][()]
 
-        if self.__flag_print_:
+        if self.__flag_print_ and flag_print:
             print("\n--- QSP: {:s} ---".format(name_qsp))
             print("dt: {:0.3f}".format(self.dd_[name_qsp]["dt"]))
             print("nt: {:0.3f}".format(self.dd_[name_qsp]["nt"]))

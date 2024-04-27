@@ -1,8 +1,8 @@
 // to launch: $qucf_angles calc_weights
 
 
-filename_coefs  coefs/LCHS-weights_100_eps4
-output_name     kmax100_eps4
+filename_coefs  coefs/LCHS-weights_40_eps4
+output_name     kmax40_eps4
 
 // stopping parameter:
 stopping_criterion 1e-12
