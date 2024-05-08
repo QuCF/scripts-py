@@ -26,11 +26,8 @@ def reload():
 
 def get_initial_state():
     psi_init = np.zeros(2, dtype = complex)
-    # psi_init[0] = np.sqrt(0.0)
-    # psi_init[1] = np.sqrt(1.0)
-
-    psi_init[0] = np.sqrt(1./2.0)
-    psi_init[1] = np.sqrt(1./2.0)
+    psi_init[0] = np.sqrt(0.0)
+    psi_init[1] = np.sqrt(1.0)
 
     return psi_init
 
@@ -421,7 +418,7 @@ def comp_LCHS_weights(k):
 
 
 # ------------------------------------------------------------------------------------------------
-def LCHS_computation(k, dt, Hi, psi_init, Nt_loc, flag_trotterization, flag_print = False):
+def LCHS_computation(k, dt, Hi, psi_init, Nt_steps, flag_trotterization, flag_print = False):
     # if flag_direct = False, use 2nd order Trotterization.
 
     # k-grid:
@@ -433,6 +430,9 @@ def LCHS_computation(k, dt, Hi, psi_init, Nt_loc, flag_trotterization, flag_prin
     Bh, Ba = get_herm_aherm_parts(Hi)
     wk = comp_LCHS_weights(k)
     N = Hi.shape[0]
+
+    # print("here")
+    # print(Ba[1,0], Ba[1,1], Ba[1,2])
     
     exp_max = None
     exp_Ba = None
@@ -446,30 +446,31 @@ def LCHS_computation(k, dt, Hi, psi_init, Nt_loc, flag_trotterization, flag_prin
     exp_LCHS = np.zeros((N,N), dtype=complex)
     for ik in range(Nk):
         temp = np.identity(N, dtype=complex)
-        if Nt_loc > 0:
-            exp_dt = None
-            if not flag_trotterization:
-                Prop_k = -1.j * dt * (Ba + k[ik]*Bh) # here, use Trotterization
-                exp_dt = expm(Prop_k)
-            else:
+
+        if flag_trotterization:
+            if Nt_steps > 0:
+                # if not flag_trotterization:
+                #     Prop_k = -1.j * dt * (Ba + k[ik]*Bh) # here, use Trotterization
+                #     exp_dt = expm(Prop_k)
+                # else:
                 Prop_k = -1.j * dt * (ik * dk) * Bh
                 exp_dt = exp_max.dot(expm(Prop_k))
                 exp_dt = exp_dt.dot(exp_Ba)
                 exp_dt = exp_Ba.dot(exp_dt)
-                
-            for it in range(Nt_loc):
-                temp = exp_dt.dot(temp)
+                    
+                for _ in range(Nt_steps):
+                    temp = exp_dt.dot(temp)
+        else:
+            Prop_k = -1.j * dt * Nt_steps * (Ba + k[ik]*Bh) # here, use Trotterization
+            temp = expm(Prop_k)
+
         exp_LCHS += wk[ik] * temp
-    if Nt_loc > 0:
-        del temp, Prop_k, exp_max, exp_Ba, exp_dt, ik
-    else:
-        del temp, exp_max, exp_Ba, ik
          
     # compare the exponentiating matrices:
     if flag_print:
         exp_ref = np.identity(N, dtype=complex)
         exp_dt  = expm(-dt*Hi)
-        for it in range(Nt_loc):
+        for it in range(Nt_steps):
             exp_ref = exp_dt.dot(exp_ref)
         del exp_dt
     

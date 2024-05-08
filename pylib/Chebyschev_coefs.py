@@ -156,7 +156,7 @@ class Ch_:
         Nx = len(x)
         y = np.zeros(Nx)
         for ii in range(Nx):
-            y[ii] = np.exp(- np.arcsin(x[ii])**2 / (2 * self.par_**2))
+            y[ii] = np.exp(- np.arcsin(x[ii])**2. / (2. * self.par_**2))
         return y
 
     # - id_fun_ = 4 -

@@ -47,10 +47,10 @@ def get_trot(norm_Ah_in, norm_Aa_in, t_in, coef_trot_in, k_max_in):
         tau_res = coef_trot_in * 1. / norm_Aa_in
 
     # number of trotterization steps:
-    Nt_trot_res = int(t_in / tau_res)
-    if Nt_trot_res <= 0:
-        Nt_trot_res = 1
-    return tau_res, Nt_trot_res
+    Nt_steps = int(t_in / tau_res)
+    if Nt_steps <= 0:
+        Nt_steps = 1
+    return tau_res, Nt_steps
 
 
 def get_max_err(t_ref, psi_ref, t_LCHS, psi_LCHS, coef_sign):
