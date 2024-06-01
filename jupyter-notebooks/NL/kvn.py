@@ -597,9 +597,9 @@ def compute_norm_matrices_LCHS(
     Bk     =     dk * Ah
 
     # --- Normalize the matrices ---
-    Ba_norm,     ncoef_a,    nonsparsity_a_    = mix.compute_normalized_matrix(Ba,     "Ba")
-    B_kmax_norm, ncoef_kmax, nonsparsity_kmax_ = mix.compute_normalized_matrix(B_kmax, "B_kmax")
-    Bk_norm,     ncoef_k,    nonsparsity_k_    = mix.compute_normalized_matrix(Bk,     "Bk")
+    Ba_norm,     ncoef_a,    nonsparsity_a_    = mix.compute_normalized_matrix(Ba,     "Ba", True)
+    B_kmax_norm, ncoef_kmax, nonsparsity_kmax_ = mix.compute_normalized_matrix(B_kmax, "B_kmax", True)
+    Bk_norm,     ncoef_k,    nonsparsity_k_    = mix.compute_normalized_matrix(Bk,     "Bk", True)
     print()
     print("norm of Ba_norm_:     {:0.3f}".format(mix.find_norm_of_matrix(Ba_norm)))
     print("norm of B_kmax_norm_: {:0.3f}".format(mix.find_norm_of_matrix(B_kmax_norm)))
@@ -611,9 +611,10 @@ def compute_norm_matrices_LCHS(
         dt_kmax = ncoef_kmax * t_step      * factor_global_kmax
         dt_k    = ncoef_k    * t_step      * factor_global_k
         print("\n--- Time steps ---")
-        print("dt_a:    {:0.6e}".format(dt_a))
-        print("dt_kmax: {:0.6e}".format(dt_kmax))
-        print("dt_k:    {:0.6e}".format(dt_k))
+        # print("dt_a:    {:0.6e}".format(dt_a))
+        # print("dt_kmax: {:0.6e}".format(dt_kmax))
+        # print("dt_k:    {:0.6e}".format(dt_k))
+        print("dt_a, dt_kmax, dt_k: {:0.12e}, {:0.12e}, {:0.12e}".format(dt_a, dt_kmax, dt_k))
     return Ba_norm, B_kmax_norm, Bk_norm
 
 
