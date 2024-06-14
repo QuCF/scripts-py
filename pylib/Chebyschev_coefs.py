@@ -472,7 +472,7 @@ class Ch_:
 
 
     # --- Save the computed Chebyschev coefficients into the .hdf5 file ---
-    def save_coefficients(self):
+    def save_coefficients(self, fname_ch = None):
         from datetime import datetime
         from datetime import date
 
@@ -480,9 +480,12 @@ class Ch_:
         curr_time = date.today().strftime("%m/%d/%Y") + ": " + datetime.now().strftime("%H:%M:%S")
 
         # --- Create the filename ---
-        fname_ = "{:s}_{:s}_eps{:d}.hdf5".format(
-            self.line_f_, self.line_par_, -int(np.log10(self.max_abs_err_))
-        )
+        if fname_ch is None:
+            fname_ = "{:s}_{:s}_eps{:d}.hdf5".format(
+                self.line_f_, self.line_par_, -int(np.log10(self.max_abs_err_))
+            )
+        else:
+            fname_ = fname_ch + "_eps{:d}.hdf5".format(-int(np.log10(self.max_abs_err_)))
         full_fname = self.path_root_ + "/" + fname_
 
         # --- Store data ---
