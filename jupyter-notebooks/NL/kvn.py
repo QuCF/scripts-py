@@ -493,7 +493,210 @@ def get_sums_UW_KvN_LCHS_matrices_norm(
 
 
 # ---------------------------------------------------------------------------
-def construct_DI_matrix_1D(x, F, D = 0.001, flag_asin=False, flag_Cheb = True):
+def get_HALF_sums_UW_KvN_LCHS_matrices_norm_rescaled(
+        x, F, norm_a, norm_k, dk, id_b, id_end
+):
+    import pylib.Chebyschev_coefs as ch
+
+    def delta_f(i1, i2):
+        if i1 == i2:
+            return 1
+        else:
+            return 0
+    # ----------------------------------
+    Nx = len(x)
+    dx = np.diff(x)[0]
+    x_loc = np.array(x)
+
+    Aa_v2 = np.zeros((Nx, Nx), dtype=complex)
+    Ah_v2 = np.zeros((Nx, Nx), dtype=complex)
+    sum_D  = np.zeros(Nx//2)
+    sum_RR = np.zeros(Nx//2)
+    sum_RL = np.zeros(Nx//2)
+
+    # --- here, the x-grid is rescaled for correct computation of Chebyschev angles ---
+    f_asin = lambda x: F(0.5*np.arcsin(x) - 0.5)
+
+    for ir in range(id_b, id_end):
+        Fr = f_asin(x_loc[ir])
+        # Fr = F(0.5*np.arcsin(x_loc[ir]) - 0.5)
+
+        # --- main diagonal ---
+        Fr_cc = np.conjugate(Fr)
+        ss_r = int(Fr/np.abs(Fr))
+
+        Aa_v2[ir, ir] = - 2. * ss_r * (Fr - Fr_cc)
+        Ah_v2[ir, ir] = - 2. * ss_r * (Fr + Fr_cc)
+        sum_D[ir] = (Fr + Fr_cc)
+
+        # --- right diagonal ---
+        ic = ir + 1
+        if ic >= 0 and ic < Nx:
+            Fc = f_asin(x_loc[ic])
+            # Fc = F(np.arcsin(x_loc[ic]))
+
+            Fc_cc = np.conjugate(Fc)
+            ss_c = int(Fc/np.abs(Fc))
+
+            sum_RR[ir] = (Fr + Fc)
+            temp_1 = delta_f(ss_r,-1) * (Fr + Fc)
+            temp_2 = delta_f(ss_c, 1) * (Fr_cc + Fc_cc)
+
+            Aa_v2[ir, ic] = - (temp_1 + temp_2)
+            Ah_v2[ir, ic] = - temp_1 + temp_2
+
+        # --- left diagonal ---
+        ic = ir - 1
+        if ic >= 0 and ic < Nx:
+            Fc = f_asin(x_loc[ic])
+
+            Fc_cc = np.conjugate(Fc)
+            ss_c = int(Fc/np.abs(Fc))
+
+            sum_RL[ic] = (Fr + Fc)
+            temp_1 = delta_f(ss_r, 1) * (Fr + Fc)
+            temp_2 = delta_f(ss_c,-1) * (Fr_cc + Fc_cc)
+
+            Aa_v2[ir, ic] = temp_1 + temp_2
+            Ah_v2[ir, ic] = temp_1 - temp_2
+
+    Aa_v2 = 1.j/(4.*dx) * Aa_v2
+    Ah_v2 = -1./(4.*dx) * Ah_v2
+
+    # --- REMARK: next, we assume that F is real: ---
+    # --- because of that, F_cc = F ---
+    # sums for normalized matrices Bk and B_kmax:
+    coef_k = - dk / (4.* dx * norm_k)
+    sum_D *= -2. * coef_k
+    sum_R_k = coef_k * sum_RR 
+    sum_L_k = coef_k * sum_RL
+
+    # sums for normalized matrices Ba:
+    coef_k = 1./(4.* dx * norm_a)
+    sum_R_a = coef_k * sum_RR 
+    sum_L_a = coef_k * sum_RL
+
+    # --- rescaling because of the D-matrix ---
+
+    # rescaled sums for Bk:
+    coef_R_k, coef_D = 0.250, 0.500
+    sum_D   /= coef_D
+    sum_R_k /= coef_R_k
+    sum_L_k /= coef_R_k
+
+    # rescaled sum for Ba:
+    coef_R_a = 0.500
+    sum_R_a /= coef_R_a
+    sum_L_a /= coef_R_a
+
+    return sum_D, sum_R_k, sum_L_k, sum_R_a, sum_L_a
+
+
+
+
+# ---------------------------------------------------------------------------
+def construct_DI_matrix_1D_ZERO_BNDR(x, F, D = 0.001, flag_asin=False, flag_Cheb = True):
+    import pylib.Chebyschev_coefs as ch
+    def delta_f(i1, i2):
+        if i1 == i2:
+            return 1
+        else:
+            return 0
+    # ----------------------------------
+    Nx = len(x)
+    dx = np.diff(x)[0]
+    H = np.zeros((Nx, Nx), dtype=complex)
+
+    ss = 1. / (2.*dx)
+    bb = 1. / (dx**2)
+    cc = -2.*bb*D
+    for ir in range(Nx):
+        Fr = F(x[ir])
+        if ir == 0:
+            F0, F1, F2 = F(x[0]), F(x[1]), F(x[2])
+            H[ir, 0] =  2.*cc - 6.*ss*F0
+            H[ir, 1] = -5.*cc + 4.*ss*F0 + 4.*ss*F1
+            H[ir, 2] =  4.*cc -    ss*F0 -    ss*F2
+            H[ir, 3] = -   cc
+        elif ir == Nx-1:
+            Fq, Fm, Fmm = F(x[ir]), F(x[ir-1]), F(x[ir-2])
+            H[ir, ir]   =  2.*cc + 6.*ss*Fq
+            H[ir, ir-1] = -5.*cc - 4.*ss*Fm  - 4.*ss*Fq
+            H[ir, ir-2] =  4.*cc +    ss*Fmm +    ss*Fq
+            H[ir, ir-3] = -   cc
+        else:
+            Fm, F0, Fp = F(x[ir-1]), F(x[ir]), F(x[ir+1])
+            H[ir, ir-1] = cc - ss*Fm - ss*F0
+            H[ir, ir]   = -2.*cc
+            H[ir, ir+1] = cc + ss*F0 + ss*Fp
+    H = - 1.j/2. * H
+
+    # ---------------------------------------------------------
+    # --- Compute Hermitian and anti-Hermitian of 1j * H_UW ---
+
+    # *** OPTION 1 ***
+    Ah_v1, Aa_v1 = get_herm_aherm_parts(1j * H)
+
+    # *** OPTION 2 ***
+    def temp_comm():
+        # if flag_Cheb:
+        #     x_roots = ch.get_Cheb_roots(Nx)
+        #     x_loc = np.array(x_roots)
+        # else:
+        #     x_loc = np.array(x)
+        #
+        # Aa_v2 = np.zeros((Nx, Nx), dtype=complex)
+        # Ah_v2 = np.zeros((Nx, Nx), dtype=complex)
+        # for ir in range(Nx):
+        #     if flag_asin:
+        #         Fr = F(np.arcsin(x_loc[ir]))
+        #     else:
+        #         Fr = F(x_loc[ir])
+        #
+        #     Fr_cc = np.conjugate(Fr)
+        #     ss_r = int(Fr/np.abs(Fr))
+        #     Aa_v2[ir, ir] = - 2. * ss_r * (Fr - Fr_cc)
+        #     Ah_v2[ir, ir] = - 2. * ss_r * (Fr + Fr_cc)
+        #
+        #     ic = ir + 1
+        #     if ic >= 0 and ic < Nx:
+        #         if flag_asin:
+        #             Fc = F(np.arcsin(x_loc[ic]))
+        #         else:
+        #             Fc = F(x_loc[ic])
+        #         Fc_cc = np.conjugate(Fc)
+        #         ss_c = int(Fc/np.abs(Fc))
+        #
+        #         temp_1 = delta_f(ss_r,-1) * (Fr + Fc)
+        #         temp_2 = delta_f(ss_c, 1) * (Fr_cc + Fc_cc)
+        #
+        #         Aa_v2[ir, ic] = - (temp_1 + temp_2)
+        #         Ah_v2[ir, ic] = - temp_1 + temp_2
+        #
+        #     ic = ir - 1
+        #     if ic >= 0 and ic < Nx:
+        #         if flag_asin:
+        #             Fc = F(np.arcsin(x_loc[ic]))
+        #         else:
+        #             Fc = F(x_loc[ic])
+        #         Fc_cc = np.conjugate(Fc)
+        #         ss_c = int(Fc/np.abs(Fc))
+        #
+        #         temp_1 = delta_f(ss_r, 1) * (Fr + Fc)
+        #         temp_2 = delta_f(ss_c,-1) * (Fr_cc + Fc_cc)
+        #
+        #         Aa_v2[ir, ic] = temp_1 + temp_2
+        #         Ah_v2[ir, ic] = temp_1 - temp_2
+        #
+        # Aa_v2 = 1.j/(4.*dx) * Aa_v2
+        # Ah_v2 = -1./(4.*dx) * Ah_v2
+        return
+
+    return H, Aa_v1, Ah_v1, None, None
+
+
+# ---------------------------------------------------------------------------
+def construct_DI_matrix_1D_OPEN_BNDR(x, F, D = 0.001, flag_asin=False, flag_Cheb = True):
     import pylib.Chebyschev_coefs as ch
     def delta_f(i1, i2):
         if i1 == i2:
