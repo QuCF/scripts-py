@@ -3,8 +3,8 @@
 
 // The name of the file (without .hdf5 ) with coefficients describing 
 //		the polynomial approximation of the chosen function:
-filename_coefs  coefs/Ra_odd_eps15
-output_name           Ra_odd_eps15
+filename_coefs  coefs/D_eps6
+output_name           D_eps6
 
 // stopping parameter:
 stopping_criterion 1e-12
