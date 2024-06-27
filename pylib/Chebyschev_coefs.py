@@ -194,7 +194,8 @@ class Ch_:
             parity_in = None, 
             path_root_in = None,
             series_coefs = None,
-            x_grid = None
+            x_grid = None,
+            coef_norm = None
     ):
         self.par_ = par_in
         self.id_fun_ = id_func
@@ -202,7 +203,10 @@ class Ch_:
         if self.id_fun_ == -1:
             self.y_ref_ = np.array(profile_in)
             self.path_root_ = path_root_in
-            self.coef_norm_ = 1.0
+            if coef_norm is not None:
+                self.coef_norm_ = coef_norm
+            else:
+                self.coef_norm_ = 1.0
             self.parity_ = parity_in
             self.line_f_ = name_prof
             self.line_par_ = "{:d}".format(int(self.par_))
@@ -318,7 +322,8 @@ class Ch_:
         # - Evaluate the chosen function -
         if self.id_fun_ >= 0:
             self.y_ref_ = self.func_ch_(self.x_)
-            self.y_ref_ *= self.coef_norm_
+            
+        self.y_ref_ *= self.coef_norm_
 
         # Computation:
         print()

@@ -288,7 +288,7 @@ def construct_CD_matrix_1D(x, F):
 
 
 # ---------------------------------------------------------------------------
-def construct_UW_matrix_1D(x, F, flag_asin=False, flag_Cheb = True):
+def construct_UW_matrix_1D(x, F, flag_asin=False, flag_Cheb = True, flag_sin = False):
     import pylib.Chebyschev_coefs as ch
 
     def delta_f(i1, i2):
@@ -326,6 +326,9 @@ def construct_UW_matrix_1D(x, F, flag_asin=False, flag_Cheb = True):
         x_loc = np.array(x_roots)
     else:
         x_loc = np.array(x)
+
+    # if flag_sin:
+    #     x_loc = np.sin(x_loc)
 
     Aa_v2 = np.zeros((Nx, Nx), dtype=complex)
     Ah_v2 = np.zeros((Nx, Nx), dtype=complex)
@@ -379,7 +382,7 @@ def construct_UW_matrix_1D(x, F, flag_asin=False, flag_Cheb = True):
 # ---------------------------------------------------------------------------
 def get_sums_UW_KvN_LCHS_matrices_norm(
         x, F, norm_a, norm_k, dk, 
-        flag_asin = False, flag_Cheb = True
+        flag_asin = False, flag_Cheb = True, flag_sin = False
 ):
     import pylib.Chebyschev_coefs as ch
 
@@ -398,9 +401,13 @@ def get_sums_UW_KvN_LCHS_matrices_norm(
     else:
         x_loc = np.array(x)
 
+    # if flag_sin:
+    #     x_loc = np.sin(x_loc)
+
     Aa_v2 = np.zeros((Nx, Nx), dtype=complex)
     Ah_v2 = np.zeros((Nx, Nx), dtype=complex)
     array_ss_h = np.zeros(Nx)
+    array_ss_r = np.zeros(Nx-1)
     array_delta_row_R = np.zeros(Nx-1)
     array_delta_col_R = np.zeros(Nx-1)
     array_delta_row_L = np.zeros(Nx-1)
@@ -448,6 +455,8 @@ def get_sums_UW_KvN_LCHS_matrices_norm(
             Aa_v2[ir, ic] = - (temp_1 + temp_2)
             Ah_v2[ir, ic] = - temp_1 + temp_2
 
+            array_ss_r[ir] = ss_c
+
         # --- left diagonal ---
         ic = ir - 1
         if ic >= 0 and ic < Nx:
@@ -486,10 +495,9 @@ def get_sums_UW_KvN_LCHS_matrices_norm(
     sum_R_a = coef_k * sum_RR 
     sum_L_a = coef_k * sum_RL
 
-    return array_ss_h, array_delta_row_R, array_delta_col_R, \
+    return array_ss_h, array_ss_r, array_delta_row_R, array_delta_col_R, \
         array_delta_row_L, array_delta_col_L, \
         sum_D, sum_R_k, sum_L_k, sum_R_a, sum_L_a
-    # sum_RR, sum_CR, sum_RL, sum_CL
 
 
 # ---------------------------------------------------------------------------
@@ -556,85 +564,6 @@ def get_HALF_sums_UW_KvN_LCHS_matrices_norm_rescaled(
     sum_L_a /= coef_R_a
 
     return sum_R_k, sum_L_k, sum_R_a, sum_L_a
-
-
-# ---------------------------------------------------------------------------
-def get_HALF_sums_UW_KvN_LCHS_matrices_norm_rescaled_OLD(
-        x, F, norm_a, norm_k, dk, id_b, id_end
-):
-    import pylib.Chebyschev_coefs as ch
-
-    def delta_f(i1, i2):
-        if i1 == i2:
-            return 1
-        else:
-            return 0
-    # ----------------------------------
-    Nx = len(x)
-    dx = np.diff(x)[0]
-    sum_RR = np.zeros(Nx-1)
-    sum_RL = np.zeros(Nx-1)
-
-    h = 2. / (Nx-2) # assume that x_max = 1
-
-    xr = np.linspace(-1.0,    1.0+h, Nx)
-    xl = np.linspace(-1.0-h,    1.0, Nx)
-
-    x_ref = np.zeros(Nx-1)
-    for ix in range(Nx-1):
-        x_ref[ix] = -1.0 + h * ix
-
-    # --- here, the x-grid is rescaled for correct computation of Chebyschev angles ---
-    f_asin = lambda x1: F(0.5*np.arcsin(x1) - 0.5)
-
-    print("\n here")
-    print(f_asin(1.0))
-
-    # for ir in range(id_b, id_end):
-    for ir in range(Nx):      
-
-        # --- right diagonal ---
-        Fr = f_asin(xr[ir])
-        ic = ir + 1
-        if ic >= 0 and ic < Nx:
-            Fc = f_asin(xr[ic])
-            sum_RR[ir] = (Fr + Fc)
-            print("ir, ic, v: ", ir, ic, Fc)
-
-        # --- left diagonal ---
-        Fr = f_asin(xl[ir])
-        ic = ir - 1
-        if ic >= 0 and ic < Nx:
-            Fc = f_asin(xl[ic])
-            sum_RL[ic] = (Fr + Fc)
-
-
-    # print(sum_RR)
-
-
-    # sums for normalized matrices Bk and B_kmax:
-    coef_k = - dk / (4.* dx * norm_k)
-    sum_R_k = coef_k * sum_RR 
-    sum_L_k = coef_k * sum_RL
-
-    # sums for normalized matrices Ba:
-    coef_k = 1./(4.* dx * norm_a)
-    sum_R_a = coef_k * sum_RR 
-    sum_L_a = coef_k * sum_RL
-
-    # --- rescaling because of the D-matrix ---
-
-    # rescaled sums for Bk:
-    coef_R_k = 0.250
-    sum_R_k /= coef_R_k
-    sum_L_k /= coef_R_k
-
-    # rescaled sum for Ba:
-    coef_R_a = 0.500
-    sum_R_a /= coef_R_a
-    sum_L_a /= coef_R_a
-
-    return sum_R_k, sum_L_k, sum_R_a, sum_L_a, x_ref
 
 
 # ---------------------------------------------------------------------------
@@ -856,6 +785,34 @@ def construct_DI_matrix_1D_OPEN_BNDR(x, F, D = 0.001, flag_asin=False, flag_Cheb
         return
 
     return H, Aa_v1, Ah_v1, None, None
+
+
+# ---------------------------------------------------------------------------
+def select_matrix_norm_nonresc_diags(
+        sel_matrix, # sel_matrix = "Ba" or "Bk"
+        flag_qsvt, Ba_qsvt, Bk_qsvt, Ba, Bk
+    ): 
+    # --- Choose the reference matrix ---
+    if flag_qsvt:
+        if sel_matrix == "Ba":
+            print("take Ba_asin.imag")
+            A_ref = np.array(Ba_qsvt.imag)
+        else:
+            print("take Bk_asin.real")
+            A_ref = np.array(Bk_qsvt.real)
+    else:
+        if sel_matrix == "Ba":
+            print("take Ba.imag")
+            A_ref = np.array(Ba.imag)
+        else:
+            print("take Bk.real")
+            A_ref = np.array(Bk.real)
+
+    # --- Get normalized (non-scaled) diagonals of the reference matrix ---
+    diag_D, _ = mix.get_diag(A_ref, i_shift = 0)
+    diag_R, _ = mix.get_diag(A_ref, i_shift = 1)
+    diag_L, _ = mix.get_diag(A_ref, i_shift = -1)
+    return diag_D, diag_R, diag_L
 
 
 # ---------------------------------------------------------------------------
