@@ -325,6 +325,13 @@ class Ch_:
             
         self.y_ref_ *= self.coef_norm_
 
+        print()
+        print("max. |norm y|: {:0.3e}".format(np.max(np.abs(self.y_ref_))))
+        print()
+
+        # print("\n sum (|norm y|**2): {:0.3e}".format(np.sum(np.abs(self.y_ref_)**2/self.Nx_)))
+        # print()
+
         # Computation:
         print()
         if self.sel_method_ == 0:

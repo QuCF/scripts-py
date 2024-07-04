@@ -1929,4 +1929,10 @@ def find_diff(A, B, res, prec = 1e-6):
             res[ir, ic] = e1
     return res
 
-
+# ------------------------------------------------------------------------------------------
+def get_Cheb_roots(Nx_loc):
+    x_roots = np.zeros(Nx_loc)
+    for ii in range(Nx_loc):
+        x_roots[ii] = np.cos((2*ii + 1)*np.pi / (2.*Nx_loc))
+    x_roots = np.flip(x_roots)
+    return x_roots

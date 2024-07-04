@@ -382,7 +382,7 @@ def construct_UW_matrix_1D(x, F, flag_asin=False, flag_Cheb = True, flag_sin = F
 # ---------------------------------------------------------------------------
 def get_sums_UW_KvN_LCHS_matrices_norm(
         x, F, norm_a, norm_k, dk, 
-        flag_asin = False, flag_Cheb = True, flag_sin = False
+        flag_asin = False, flag_Cheb = True
 ):
     import pylib.Chebyschev_coefs as ch
 
@@ -400,9 +400,6 @@ def get_sums_UW_KvN_LCHS_matrices_norm(
         x_loc = np.array(x_roots)
     else:
         x_loc = np.array(x)
-
-    # if flag_sin:
-    #     x_loc = np.sin(x_loc)
 
     Aa_v2 = np.zeros((Nx, Nx), dtype=complex)
     Ah_v2 = np.zeros((Nx, Nx), dtype=complex)
