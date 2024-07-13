@@ -283,7 +283,8 @@ class MeasOracle__:
                 self.dd_[name_qsvt] = {}
                 self.dd_[name_qsvt]["type"] = gr_one["type"][()].decode("utf-8")
                 self.dd_[name_qsvt]["eps"] = gr_one["eps"][()]
-                self.dd_[name_qsvt]["par"] = gr_one["function-parameter"][()]
+                if "function-parameter" in gr_one:
+                    self.dd_[name_qsvt]["par"] = gr_one["function-parameter"][()]
                 self.dd_[name_qsvt]["rescaling_factor"] = gr_one["rescaling_factor"][()]
                 if self.dd_[name_qsvt]["type"] == "QSP-ham":
                     self.read_qsp_hamiltonian_parameters(name_qsvt, gr_one, flag_print) 

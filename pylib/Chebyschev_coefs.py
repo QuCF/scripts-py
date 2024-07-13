@@ -307,11 +307,11 @@ class Ch_:
 
     # --- Compute the Chebyschev coefficients ---
     def compute_Ch(self, Nd):
-        self.Nd_ = Nd
+        self.Nd_ = int(Nd)
         self.Nc_ = self.Nd_ // 2
 
         if self.id_fun_ >= 0: 
-            self.Nx_ = self.Nd_*4
+            self.Nx_ = int(self.Nd_*4)
         if self.id_fun_ == -1:
             self.Nx_ = len(self.y_ref_)
 

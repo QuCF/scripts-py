@@ -271,6 +271,15 @@ def plot_max(dds, flag_save, path_save_plots):
     plt.grid(True)
     plt.show()
 
+    fig = plt.figure(figsize=(FIG_SIZE_W_,FIG_SIZE_H_))
+    ax = fig.add_subplot(111)
+    ax.plot(kappas, np.log10(array_pos), "b:", linewidth = 2, marker = "o")
+    plt.xlabel('kappa')
+    plt.title("log10 max(phis-pi/2)")
+    ax.legend()
+    plt.grid(True)
+    plt.show()
+
     # --- Plot the difference between the positive and negatives maximums ---
     fig = plt.figure(figsize=(FIG_SIZE_W_,FIG_SIZE_H_))
     ax = fig.add_subplot(111)
@@ -282,10 +291,15 @@ def plot_max(dds, flag_save, path_save_plots):
 
     # --- Saving data ---
     if flag_save:
+        # mix.save_dat_plot_1d_file(
+        #     path_save_plots + "/log_diff_pos_neg.dat", 
+        #     kappas, 
+        #     np.log10(array_diff)
+        # )
         mix.save_dat_plot_1d_file(
-            path_save_plots + "/log_diff_pos_neg.dat", 
+            path_save_plots + "/log_angles_max_vs_kappa.dat", 
             kappas, 
-            np.log10(array_diff)
+            np.log10(array_pos)
         )
     return
 

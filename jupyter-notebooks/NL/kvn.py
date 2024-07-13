@@ -288,7 +288,7 @@ def construct_CD_matrix_1D(x, F):
 
 
 # ---------------------------------------------------------------------------
-def construct_UW_matrix_1D(x, F, flag_asin=False, flag_Cheb = True, flag_sin = False):
+def construct_UW_matrix_1D(x, F, flag_asin=False, flag_Cheb = True):
     import pylib.Chebyschev_coefs as ch
 
     def delta_f(i1, i2):
@@ -326,9 +326,6 @@ def construct_UW_matrix_1D(x, F, flag_asin=False, flag_Cheb = True, flag_sin = F
         x_loc = np.array(x_roots)
     else:
         x_loc = np.array(x)
-
-    # if flag_sin:
-    #     x_loc = np.sin(x_loc)
 
     Aa_v2 = np.zeros((Nx, Nx), dtype=complex)
     Ah_v2 = np.zeros((Nx, Nx), dtype=complex)
@@ -483,18 +480,19 @@ def get_sums_UW_KvN_LCHS_matrices_norm(
     # --- because of that, F_cc = F ---
     # sums for normalized matrices Bk and B_kmax:
     coef_k = - dk / (4.* dx * norm_k)
-    sum_D *= -2. * coef_k
+    sum_D_k = -2. * coef_k * sum_D
     sum_R_k = coef_k * sum_RR 
     sum_L_k = coef_k * sum_RL
 
     # sums for normalized matrices Ba:
     coef_k = 1./(4.* dx * norm_a)
+    sum_D_a = coef_k * sum_D
     sum_R_a = coef_k * sum_RR 
     sum_L_a = coef_k * sum_RL
-
+    
     return array_ss_h, array_ss_r, array_delta_row_R, array_delta_col_R, \
         array_delta_row_L, array_delta_col_L, \
-        sum_D, sum_R_k, sum_L_k, sum_R_a, sum_L_a
+        sum_D_k, sum_R_k, sum_L_k, sum_R_a, sum_L_a, sum_D_a
 
 
 # ---------------------------------------------------------------------------
@@ -878,7 +876,7 @@ def LCHS_computation(k, dt, Hi, psi_init, Nt_steps, flag_trotterization, flag_pr
     if flag_trotterization:
         Prop_Ba = -1.j * dt/2. * Ba
         exp_Ba = expm(Prop_Ba)
-        Prop_kmax = 1.j * dt * k_max* Bh
+        Prop_kmax = 1.j * dt * k_max * Bh
         exp_max = expm(Prop_kmax)
         del Prop_Ba, Prop_kmax
     
@@ -888,10 +886,6 @@ def LCHS_computation(k, dt, Hi, psi_init, Nt_steps, flag_trotterization, flag_pr
 
         if flag_trotterization:
             if Nt_steps > 0:
-                # if not flag_trotterization:
-                #     Prop_k = -1.j * dt * (Ba + k[ik]*Bh) # here, use Trotterization
-                #     exp_dt = expm(Prop_k)
-                # else:
                 Prop_k = -1.j * dt * (ik * dk) * Bh
                 exp_dt = exp_max.dot(expm(Prop_k))
                 exp_dt = exp_dt.dot(exp_Ba)
@@ -900,7 +894,7 @@ def LCHS_computation(k, dt, Hi, psi_init, Nt_steps, flag_trotterization, flag_pr
                 for _ in range(Nt_steps):
                     temp = exp_dt.dot(temp)
         else:
-            Prop_k = -1.j * dt * Nt_steps * (Ba + k[ik]*Bh) # here, use Trotterization
+            Prop_k = -1.j * dt * Nt_steps * (Ba + k[ik]*Bh)  # here, use Trotterization
             temp = expm(Prop_k)
 
         exp_LCHS += wk[ik] * temp
@@ -922,6 +916,96 @@ def LCHS_computation(k, dt, Hi, psi_init, Nt_steps, flag_trotterization, flag_pr
     if flag_print:
         print()
         print("sum psi_t_max[max-time]**2: {:0.3e}".format(np.sum(np.abs(psi_t)**2)))
+    return psi_t
+
+
+# ------------------------------------------------------------------------------------------------
+def LCHS_computation_DEBUG(k, dt, Hi, psi_init, Nt_steps, sel_test, flag_trotterization):
+    dk = np.diff(k)[0]
+    k_max = k[-1]
+    Nk = len(k)
+
+    Bh, Ba = get_herm_aherm_parts(Hi)
+    wk = comp_LCHS_weights(k)
+    N = Hi.shape[0]
+    
+    exp_max = None
+    exp_Ba = None
+    if flag_trotterization:
+        Prop_Ba = -1.j * dt/2. * Ba 
+        exp_Ba = expm(Prop_Ba)
+        Prop_kmax = 1.j * dt * k_max * Bh 
+        exp_max = expm(Prop_kmax)
+        del Prop_Ba, Prop_kmax
+    
+    exp_LCHS = np.zeros((N,N), dtype=complex)
+    for ik in range(Nk):
+        temp = np.identity(N, dtype=complex)
+
+        if flag_trotterization:
+            if Nt_steps > 0:
+                # --- test 1 : just selector ---
+                if sel_test == 1:
+                    Prop_k = -1.j * dt  * (ik * dk) * Bh
+                    exp_dt = expm(Prop_k)
+
+                # --- test 2:  without selector ---
+                if sel_test == 2:
+                    exp_dt = exp_max.dot(exp_Ba)
+                    exp_dt = exp_Ba.dot(exp_dt)
+
+                # --- test 3:  only Bmax ---
+                if sel_test == 3:
+                    exp_dt = np.array(exp_max)
+
+                # --- test 4:  only Ba ---
+                if sel_test == 4 or sel_test == 7:
+                    exp_dt = np.array(exp_Ba)
+
+                # --- original ---
+                if sel_test == 5 or sel_test == 6 or sel_test == 12:
+                    Prop_k = -1.j * dt * (ik * dk) * Bh
+                    exp_dt = exp_max.dot(expm(Prop_k))
+                    exp_dt = exp_dt.dot(exp_Ba)
+                    exp_dt = exp_Ba.dot(exp_dt)
+                        
+                for _ in range(Nt_steps):
+                    temp = exp_dt.dot(temp)
+        else:
+            Prop_k = -1.j * dt * Nt_steps * (Ba + k[ik]*Bh)
+            temp = expm(Prop_k)
+
+        if sel_test > 5:
+            exp_LCHS += wk[ik] * temp # original
+        else:
+            exp_LCHS += temp # without weights
+         
+    # compute the output quantum state:
+    psi_t = exp_LCHS.dot(psi_init)
+    return psi_t
+
+
+# ------------------------------------------------------------------------------------------------
+def LCHS_computation_DEBUG_2(k, dt, Hi, psi_init, Nt_steps):
+    dk = np.diff(k)[0]
+    k_max = k[-1]
+    Nk = len(k)
+
+    Bh, Ba = get_herm_aherm_parts(Hi)
+    wk = comp_LCHS_weights(k)
+    N = Hi.shape[0]
+    
+    exp_LCHS = np.zeros((N,N), dtype=complex)
+    temp = np.identity(N, dtype=complex)
+
+    Prop_k = -1.j * dt  * dk * Bh
+    exp_dt = expm(Prop_k)
+    for _ in range(Nt_steps):
+        temp = exp_dt.dot(temp)
+    exp_LCHS += np.sqrt(wk[1]) * temp 
+         
+    # compute the output quantum state:
+    psi_t = exp_LCHS.dot(psi_init)
     return psi_t
 
 
@@ -1031,7 +1115,7 @@ def compute_norm_matrices_LCHS(
         factor_global_kmax = 1.0,
         factor_global_k    = 1.0,
 ):
-    Ba     = Aa
+    Ba     = np.array(Aa)
     B_kmax = - kmax * Ah
     Bk     =     dk * Ah
 
@@ -1050,16 +1134,13 @@ def compute_norm_matrices_LCHS(
         dt_kmax = ncoef_kmax * t_step      * factor_global_kmax
         dt_k    = ncoef_k    * t_step      * factor_global_k
         print("\n--- Time steps ---")
-        # print("dt_a:    {:0.6e}".format(dt_a))
-        # print("dt_kmax: {:0.6e}".format(dt_kmax))
-        # print("dt_k:    {:0.6e}".format(dt_k))
         print("dt_a, dt_kmax, dt_k: {:0.12e}, {:0.12e}, {:0.12e}".format(dt_a, dt_kmax, dt_k))
     return Ba_norm, B_kmax_norm, Bk_norm
 
 
 # ------------------------------------------------------------------------------------------------
 def compute_norm_matrices_LCHS_with_output_norm(Aa, Ah, kmax, dk):
-    Ba     = Aa
+    Ba     = np.array(Aa)
     B_kmax = - kmax * Ah
     Bk     =     dk * Ah
 
