@@ -194,7 +194,8 @@ class Ch_:
             parity_in = None, 
             path_root_in = None,
             series_coefs = None,
-            x_grid = None
+            x_grid = None,
+            coef_norm = None
     ):
         self.par_ = par_in
         self.id_fun_ = id_func
@@ -202,7 +203,10 @@ class Ch_:
         if self.id_fun_ == -1:
             self.y_ref_ = np.array(profile_in)
             self.path_root_ = path_root_in
-            self.coef_norm_ = 1.0
+            if coef_norm is not None:
+                self.coef_norm_ = coef_norm
+            else:
+                self.coef_norm_ = 1.0
             self.parity_ = parity_in
             self.line_f_ = name_prof
             self.line_par_ = "{:d}".format(int(self.par_))
@@ -303,11 +307,11 @@ class Ch_:
 
     # --- Compute the Chebyschev coefficients ---
     def compute_Ch(self, Nd):
-        self.Nd_ = Nd
+        self.Nd_ = int(Nd)
         self.Nc_ = self.Nd_ // 2
 
         if self.id_fun_ >= 0: 
-            self.Nx_ = self.Nd_*4
+            self.Nx_ = int(self.Nd_*4)
         if self.id_fun_ == -1:
             self.Nx_ = len(self.y_ref_)
 
@@ -318,7 +322,15 @@ class Ch_:
         # - Evaluate the chosen function -
         if self.id_fun_ >= 0:
             self.y_ref_ = self.func_ch_(self.x_)
-            self.y_ref_ *= self.coef_norm_
+            
+        self.y_ref_ *= self.coef_norm_
+
+        print()
+        print("max. |norm y|: {:0.3e}".format(np.max(np.abs(self.y_ref_))))
+        print()
+
+        # print("\n sum (|norm y|**2): {:0.3e}".format(np.sum(np.abs(self.y_ref_)**2/self.Nx_)))
+        # print()
 
         # Computation:
         print()
@@ -472,7 +484,7 @@ class Ch_:
 
 
     # --- Save the computed Chebyschev coefficients into the .hdf5 file ---
-    def save_coefficients(self):
+    def save_coefficients(self, fname_ch = None):
         from datetime import datetime
         from datetime import date
 
@@ -480,9 +492,12 @@ class Ch_:
         curr_time = date.today().strftime("%m/%d/%Y") + ": " + datetime.now().strftime("%H:%M:%S")
 
         # --- Create the filename ---
-        fname_ = "{:s}_{:s}_eps{:d}.hdf5".format(
-            self.line_f_, self.line_par_, -int(np.log10(self.max_abs_err_))
-        )
+        if fname_ch is None:
+            fname_ = "{:s}_{:s}_eps{:d}.hdf5".format(
+                self.line_f_, self.line_par_, -int(np.log10(self.max_abs_err_))
+            )
+        else:
+            fname_ = fname_ch + "_eps{:d}.hdf5".format(-int(np.log10(self.max_abs_err_)))
         full_fname = self.path_root_ + "/" + fname_
 
         # --- Store data ---

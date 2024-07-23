@@ -236,7 +236,7 @@ def plot_A_structure(
 
     fig1 = plt.figure(figsize=(10,10))
     ax = fig1.add_subplot(111)
-    ax.scatter(rows_A, cols_A, color="red", s = marker_size) 
+    ax.scatter(cols_A, rows_A, color="red", s = marker_size) 
     plt.xlim(0, N - 1)
     plt.ylim(0, N - 1)
     plt.gca().invert_yaxis()
@@ -288,7 +288,7 @@ def construct_CD_matrix_1D(x, F):
 
 
 # ---------------------------------------------------------------------------
-def construct_UW_matrix_1D(x, F, flag_asin=False):
+def construct_UW_matrix_1D(x, F, flag_asin=False, flag_Cheb = True):
     import pylib.Chebyschev_coefs as ch
 
     def delta_f(i1, i2):
@@ -321,8 +321,11 @@ def construct_UW_matrix_1D(x, F, flag_asin=False):
     Ah_v1, Aa_v1 = get_herm_aherm_parts(1j * H_UW)
 
     # *** OPTION 2 ***
-    x_roots = ch.get_Cheb_roots(Nx)
-    x_loc = np.array(x_roots)
+    if flag_Cheb:
+        x_roots = ch.get_Cheb_roots(Nx)
+        x_loc = np.array(x_roots)
+    else:
+        x_loc = np.array(x)
 
     Aa_v2 = np.zeros((Nx, Nx), dtype=complex)
     Ah_v2 = np.zeros((Nx, Nx), dtype=complex)
@@ -374,6 +377,440 @@ def construct_UW_matrix_1D(x, F, flag_asin=False):
 
 
 # ---------------------------------------------------------------------------
+def get_sums_UW_KvN_LCHS_matrices_norm(
+        x, F, norm_a, norm_k, dk, 
+        flag_asin = False, flag_Cheb = True
+):
+    import pylib.Chebyschev_coefs as ch
+
+    def delta_f(i1, i2):
+        if i1 == i2:
+            return 1
+        else:
+            return 0
+    # ----------------------------------
+    Nx = len(x)
+    dx = np.diff(x)[0]
+
+    if flag_Cheb:
+        x_roots = ch.get_Cheb_roots(Nx)
+        x_loc = np.array(x_roots)
+    else:
+        x_loc = np.array(x)
+
+    Aa_v2 = np.zeros((Nx, Nx), dtype=complex)
+    Ah_v2 = np.zeros((Nx, Nx), dtype=complex)
+    array_ss_h = np.zeros(Nx)
+    array_ss_r = np.zeros(Nx-1)
+    array_delta_row_R = np.zeros(Nx-1)
+    array_delta_col_R = np.zeros(Nx-1)
+    array_delta_row_L = np.zeros(Nx-1)
+    array_delta_col_L = np.zeros(Nx-1)
+    sum_D  = np.zeros(Nx)
+    sum_RR = np.zeros(Nx-1)
+    # sum_CR = np.zeros(Nx-1)
+    sum_RL = np.zeros(Nx-1)
+    # sum_CL = np.zeros(Nx-1)
+
+    for ir in range(Nx):
+        if flag_asin:
+            Fr = F(np.arcsin(x_loc[ir]))
+        else:
+            Fr = F(x_loc[ir])
+
+        # --- main diagonal ---
+        Fr_cc = np.conjugate(Fr)
+        ss_r = int(Fr/np.abs(Fr))
+        array_ss_h[ir] = ss_r
+
+        Aa_v2[ir, ir] = - 2. * ss_r * (Fr - Fr_cc)
+        Ah_v2[ir, ir] = - 2. * ss_r * (Fr + Fr_cc)
+        sum_D[ir] = (Fr + Fr_cc)
+
+        # --- right diagonal ---
+        ic = ir + 1
+        if ic >= 0 and ic < Nx:
+            if flag_asin:
+                Fc = F(np.arcsin(x_loc[ic]))
+            else:
+                Fc = F(x_loc[ic])
+            Fc_cc = np.conjugate(Fc)
+            ss_c = int(Fc/np.abs(Fc))
+
+            array_delta_row_R[ir] = delta_f(ss_r,-1)
+            array_delta_col_R[ir] = delta_f(ss_c, 1)
+
+            sum_RR[ir] = (Fr + Fc)
+            # sum_CR[ir] = (Fr_cc + Fc_cc)
+
+            temp_1 = delta_f(ss_r,-1) * (Fr + Fc)
+            temp_2 = delta_f(ss_c, 1) * (Fr_cc + Fc_cc)
+
+            Aa_v2[ir, ic] = - (temp_1 + temp_2)
+            Ah_v2[ir, ic] = - temp_1 + temp_2
+
+            array_ss_r[ir] = ss_c
+
+        # --- left diagonal ---
+        ic = ir - 1
+        if ic >= 0 and ic < Nx:
+            if flag_asin:
+                Fc = F(np.arcsin(x_loc[ic]))
+            else:
+                Fc = F(x_loc[ic])
+            Fc_cc = np.conjugate(Fc)
+            ss_c = int(Fc/np.abs(Fc))
+
+            array_delta_row_L[ic] = delta_f(ss_r, 1)
+            array_delta_col_L[ic] = delta_f(ss_c,-1)
+
+            sum_RL[ic] = (Fr + Fc)
+            # sum_CL[ic] = (Fr_cc + Fc_cc)
+
+            temp_1 = delta_f(ss_r, 1) * (Fr + Fc)
+            temp_2 = delta_f(ss_c,-1) * (Fr_cc + Fc_cc)
+
+            Aa_v2[ir, ic] = temp_1 + temp_2
+            Ah_v2[ir, ic] = temp_1 - temp_2
+
+    Aa_v2 = 1.j/(4.*dx) * Aa_v2
+    Ah_v2 = -1./(4.*dx) * Ah_v2
+
+    # --- REMARK: next, we assume that F is real: ---
+    # --- because of that, F_cc = F ---
+    # sums for normalized matrices Bk and B_kmax:
+    coef_k = - dk / (4.* dx * norm_k)
+    sum_D_k = -2. * coef_k * sum_D
+    sum_R_k = coef_k * sum_RR 
+    sum_L_k = coef_k * sum_RL
+
+    # sums for normalized matrices Ba:
+    coef_k = 1./(4.* dx * norm_a)
+    sum_D_a = coef_k * sum_D
+    sum_R_a = coef_k * sum_RR 
+    sum_L_a = coef_k * sum_RL
+    
+    return array_ss_h, array_ss_r, array_delta_row_R, array_delta_col_R, \
+        array_delta_row_L, array_delta_col_L, \
+        sum_D_k, sum_R_k, sum_L_k, sum_R_a, sum_L_a, sum_D_a
+
+
+# ---------------------------------------------------------------------------
+def get_HALF_sums_UW_KvN_LCHS_matrices_norm_rescaled(
+        x, F, norm_a, norm_k, dk, id_b, id_end
+):
+    import pylib.Chebyschev_coefs as ch
+
+    def delta_f(i1, i2):
+        if i1 == i2:
+            return 1
+        else:
+            return 0
+    # ----------------------------------
+    Nx = len(x)
+    dx = np.diff(x)[0]
+    sum_RR = np.zeros(Nx)
+    sum_RL = np.zeros(Nx)
+
+    # --- here, the x-grid is rescaled for correct computation of Chebyschev angles ---
+    f_asin = lambda x1: F(0.5*np.arcsin(x1) - 0.5)
+
+    print("\n here")
+    print(f_asin(1.0))
+
+    # for ir in range(id_b, id_end):
+    for ir in range(Nx):      
+
+        # --- right diagonal ---
+        Fr = f_asin(xr[ir])
+        ic = ir + 1
+        if ic >= 0 and ic < Nx:
+            Fc = f_asin(xr[ic])
+            sum_RR[ir] = (Fr + Fc)
+            print("ir, ic, v: ", ir, ic, Fc)
+
+        # --- left diagonal ---
+        Fr = f_asin(xl[ir])
+        ic = ir - 1
+        if ic >= 0 and ic < Nx:
+            Fc = f_asin(xl[ic])
+            sum_RL[ic] = (Fr + Fc)
+
+    # sums for normalized matrices Bk and B_kmax:
+    coef_k = - dk / (4.* dx * norm_k)
+    sum_R_k = coef_k * sum_RR 
+    sum_L_k = coef_k * sum_RL
+
+    # sums for normalized matrices Ba:
+    coef_k = 1./(4.* dx * norm_a)
+    sum_R_a = coef_k * sum_RR 
+    sum_L_a = coef_k * sum_RL
+
+    # --- rescaling because of the D-matrix ---
+
+    # rescaled sums for Bk:
+    coef_R_k = 0.250
+    sum_R_k /= coef_R_k
+    sum_L_k /= coef_R_k
+
+    # rescaled sum for Ba:
+    coef_R_a = 0.500
+    sum_R_a /= coef_R_a
+    sum_L_a /= coef_R_a
+
+    return sum_R_k, sum_L_k, sum_R_a, sum_L_a
+
+
+# ---------------------------------------------------------------------------
+def construct_DI_matrix_1D(x, F, D = 0.001, flag_DI_Z = False, flag_asin = False):
+    import pylib.Chebyschev_coefs as ch
+    def delta_f(i1, i2):
+        if i1 == i2:
+            return 1
+        else:
+            return 0
+    # ----------------------------------
+    Nx = len(x)
+    dx = np.diff(x)[0]
+    H = np.zeros((Nx, Nx), dtype=complex)
+
+    if not flag_DI_Z:
+        # === OPEN BOUNDARY CONDITIONS ===
+        print("--> OPEN boundary conditions")
+        ss = 1. / (2.*dx)
+        bb = 1. / (dx**2)
+        cc = -2.*bb*D
+        for ir in range(Nx):
+            Fr = F(x[ir])
+            if ir == 0:
+                F0, F1, F2 = F(x[0]), F(x[1]), F(x[2])
+                H[ir, 0] =  2.*cc - 6.*ss*F0
+                H[ir, 1] = -5.*cc + 4.*ss*F0 + 4.*ss*F1
+                H[ir, 2] =  4.*cc -    ss*F0 -    ss*F2
+                H[ir, 3] = -   cc
+            elif ir == Nx-1:
+                Fq, Fm, Fmm = F(x[ir]), F(x[ir-1]), F(x[ir-2])
+                H[ir, ir]   =  2.*cc + 6.*ss*Fq
+                H[ir, ir-1] = -5.*cc - 4.*ss*Fm  - 4.*ss*Fq
+                H[ir, ir-2] =  4.*cc +    ss*Fmm +    ss*Fq
+                H[ir, ir-3] = -   cc
+            else:
+                Fm, F0, Fp = F(x[ir-1]), F(x[ir]), F(x[ir+1])
+                H[ir, ir-1] = cc - ss*Fm - ss*F0
+                H[ir, ir]   = -2.*cc
+                H[ir, ir+1] = cc + ss*F0 + ss*Fp
+        H = - 1.j/2. * H
+    else:
+        # === ZERO BOUNDARY CONDITIONS ===
+        print("--> ZERO boundary conditions")
+        ss = 1. / (2.*dx)
+        bb = 1. / (dx**2)
+        cc = -2.*bb*D
+        for ir in range(Nx):
+            if ir > 0 and ir < (Nx-1):
+                Fm, F0, Fp = F(x[ir-1]), F(x[ir]), F(x[ir+1])
+                H[ir, ir-1] = cc - ss*Fm - ss*F0
+                H[ir, ir]   = -2.*cc
+                H[ir, ir+1] = cc + ss*F0 + ss*Fp
+            else:
+                H[ir, ir] = 1.0
+        H = - 1.j/2. * H
+
+    # ---------------------------------------------------------
+    # --- Compute Hermitian and anti-Hermitian of 1j * H_UW ---
+
+    # *** OPTION 1 ***
+    Ah_v1, Aa_v1 = get_herm_aherm_parts(1j * H)
+
+    # *** OPTION 2 ***
+    def temp_comm():
+        # if flag_Cheb:
+        #     x_roots = ch.get_Cheb_roots(Nx)
+        #     x_loc = np.array(x_roots)
+        # else:
+        #     x_loc = np.array(x)
+        #
+        # Aa_v2 = np.zeros((Nx, Nx), dtype=complex)
+        # Ah_v2 = np.zeros((Nx, Nx), dtype=complex)
+        # for ir in range(Nx):
+        #     if flag_asin:
+        #         Fr = F(np.arcsin(x_loc[ir]))
+        #     else:
+        #         Fr = F(x_loc[ir])
+        #
+        #     Fr_cc = np.conjugate(Fr)
+        #     ss_r = int(Fr/np.abs(Fr))
+        #     Aa_v2[ir, ir] = - 2. * ss_r * (Fr - Fr_cc)
+        #     Ah_v2[ir, ir] = - 2. * ss_r * (Fr + Fr_cc)
+        #
+        #     ic = ir + 1
+        #     if ic >= 0 and ic < Nx:
+        #         if flag_asin:
+        #             Fc = F(np.arcsin(x_loc[ic]))
+        #         else:
+        #             Fc = F(x_loc[ic])
+        #         Fc_cc = np.conjugate(Fc)
+        #         ss_c = int(Fc/np.abs(Fc))
+        #
+        #         temp_1 = delta_f(ss_r,-1) * (Fr + Fc)
+        #         temp_2 = delta_f(ss_c, 1) * (Fr_cc + Fc_cc)
+        #
+        #         Aa_v2[ir, ic] = - (temp_1 + temp_2)
+        #         Ah_v2[ir, ic] = - temp_1 + temp_2
+        #
+        #     ic = ir - 1
+        #     if ic >= 0 and ic < Nx:
+        #         if flag_asin:
+        #             Fc = F(np.arcsin(x_loc[ic]))
+        #         else:
+        #             Fc = F(x_loc[ic])
+        #         Fc_cc = np.conjugate(Fc)
+        #         ss_c = int(Fc/np.abs(Fc))
+        #
+        #         temp_1 = delta_f(ss_r, 1) * (Fr + Fc)
+        #         temp_2 = delta_f(ss_c,-1) * (Fr_cc + Fc_cc)
+        #
+        #         Aa_v2[ir, ic] = temp_1 + temp_2
+        #         Ah_v2[ir, ic] = temp_1 - temp_2
+        #
+        # Aa_v2 = 1.j/(4.*dx) * Aa_v2
+        # Ah_v2 = -1./(4.*dx) * Ah_v2
+        return
+
+    return H, Aa_v1, Ah_v1, None, None
+
+
+# ---------------------------------------------------------------------------
+def construct_DI_matrix_1D_OPEN_BNDR(x, F, D = 0.001, flag_asin=False, flag_Cheb = True):
+    import pylib.Chebyschev_coefs as ch
+    def delta_f(i1, i2):
+        if i1 == i2:
+            return 1
+        else:
+            return 0
+    # ----------------------------------
+    Nx = len(x)
+    dx = np.diff(x)[0]
+    H = np.zeros((Nx, Nx), dtype=complex)
+
+    ss = 1. / (2.*dx)
+    bb = 1. / (dx**2)
+    cc = -2.*bb*D
+    for ir in range(Nx):
+        Fr = F(x[ir])
+
+        if ir == 0:
+            F0, F1, F2 = F(x[0]), F(x[1]), F(x[2])
+            H[ir, 0] =  2.*cc - 6.*ss*F0
+            H[ir, 1] = -5.*cc + 4.*ss*F0 + 4.*ss*F1
+            H[ir, 2] =  4.*cc -    ss*F0 -    ss*F2
+            H[ir, 3] = -   cc
+        elif ir == Nx-1:
+            Fq, Fm, Fmm = F(x[ir]), F(x[ir-1]), F(x[ir-2])
+            H[ir, ir]   =  2.*cc + 6.*ss*Fq
+            H[ir, ir-1] = -5.*cc - 4.*ss*Fm  - 4.*ss*Fq
+            H[ir, ir-2] =  4.*cc +    ss*Fmm +    ss*Fq
+            H[ir, ir-3] = -   cc
+        else:
+            Fm, F0, Fp = F(x[ir-1]), F(x[ir]), F(x[ir+1])
+            H[ir, ir-1] = cc - ss*Fm - ss*F0
+            H[ir, ir]   = -2.*cc
+            H[ir, ir+1] = cc + ss*F0 + ss*Fp
+    H = - 1.j/2. * H
+
+    # ---------------------------------------------------------
+    # --- Compute Hermitian and anti-Hermitian of 1j * H_UW ---
+
+    # *** OPTION 1 ***
+    Ah_v1, Aa_v1 = get_herm_aherm_parts(1j * H)
+
+    # *** OPTION 2 ***
+    def temp_comm():
+        # if flag_Cheb:
+        #     x_roots = ch.get_Cheb_roots(Nx)
+        #     x_loc = np.array(x_roots)
+        # else:
+        #     x_loc = np.array(x)
+        #
+        # Aa_v2 = np.zeros((Nx, Nx), dtype=complex)
+        # Ah_v2 = np.zeros((Nx, Nx), dtype=complex)
+        # for ir in range(Nx):
+        #     if flag_asin:
+        #         Fr = F(np.arcsin(x_loc[ir]))
+        #     else:
+        #         Fr = F(x_loc[ir])
+        #
+        #     Fr_cc = np.conjugate(Fr)
+        #     ss_r = int(Fr/np.abs(Fr))
+        #     Aa_v2[ir, ir] = - 2. * ss_r * (Fr - Fr_cc)
+        #     Ah_v2[ir, ir] = - 2. * ss_r * (Fr + Fr_cc)
+        #
+        #     ic = ir + 1
+        #     if ic >= 0 and ic < Nx:
+        #         if flag_asin:
+        #             Fc = F(np.arcsin(x_loc[ic]))
+        #         else:
+        #             Fc = F(x_loc[ic])
+        #         Fc_cc = np.conjugate(Fc)
+        #         ss_c = int(Fc/np.abs(Fc))
+        #
+        #         temp_1 = delta_f(ss_r,-1) * (Fr + Fc)
+        #         temp_2 = delta_f(ss_c, 1) * (Fr_cc + Fc_cc)
+        #
+        #         Aa_v2[ir, ic] = - (temp_1 + temp_2)
+        #         Ah_v2[ir, ic] = - temp_1 + temp_2
+        #
+        #     ic = ir - 1
+        #     if ic >= 0 and ic < Nx:
+        #         if flag_asin:
+        #             Fc = F(np.arcsin(x_loc[ic]))
+        #         else:
+        #             Fc = F(x_loc[ic])
+        #         Fc_cc = np.conjugate(Fc)
+        #         ss_c = int(Fc/np.abs(Fc))
+        #
+        #         temp_1 = delta_f(ss_r, 1) * (Fr + Fc)
+        #         temp_2 = delta_f(ss_c,-1) * (Fr_cc + Fc_cc)
+        #
+        #         Aa_v2[ir, ic] = temp_1 + temp_2
+        #         Ah_v2[ir, ic] = temp_1 - temp_2
+        #
+        # Aa_v2 = 1.j/(4.*dx) * Aa_v2
+        # Ah_v2 = -1./(4.*dx) * Ah_v2
+        return
+
+    return H, Aa_v1, Ah_v1, None, None
+
+
+# ---------------------------------------------------------------------------
+def select_matrix_norm_nonresc_diags(
+        sel_matrix, # sel_matrix = "Ba" or "Bk"
+        flag_qsvt, Ba_qsvt, Bk_qsvt, Ba, Bk
+    ): 
+    # --- Choose the reference matrix ---
+    if flag_qsvt:
+        if sel_matrix == "Ba":
+            print("take Ba_asin.imag")
+            A_ref = np.array(Ba_qsvt.imag)
+        else:
+            print("take Bk_asin.real")
+            A_ref = np.array(Bk_qsvt.real)
+    else:
+        if sel_matrix == "Ba":
+            print("take Ba.imag")
+            A_ref = np.array(Ba.imag)
+        else:
+            print("take Bk.real")
+            A_ref = np.array(Bk.real)
+
+    # --- Get normalized (non-scaled) diagonals of the reference matrix ---
+    diag_D, _ = mix.get_diag(A_ref, i_shift = 0)
+    diag_R, _ = mix.get_diag(A_ref, i_shift = 1)
+    diag_L, _ = mix.get_diag(A_ref, i_shift = -1)
+    return diag_D, diag_R, diag_L
+
+
+# ---------------------------------------------------------------------------
 def solve_KvN_1D_using_Hamiltonian(t, Nx, psi_init, A):
     Nt = len(t)
     dt = np.diff(t)[0]
@@ -419,8 +856,6 @@ def comp_LCHS_weights(k):
 
 # ------------------------------------------------------------------------------------------------
 def LCHS_computation(k, dt, Hi, psi_init, Nt_steps, flag_trotterization, flag_print = False):
-    # if flag_direct = False, use 2nd order Trotterization.
-
     # k-grid:
     dk = np.diff(k)[0]
     k_max = k[-1]
@@ -439,7 +874,7 @@ def LCHS_computation(k, dt, Hi, psi_init, Nt_steps, flag_trotterization, flag_pr
     if flag_trotterization:
         Prop_Ba = -1.j * dt/2. * Ba
         exp_Ba = expm(Prop_Ba)
-        Prop_kmax = 1.j * dt * k_max* Bh
+        Prop_kmax = 1.j * dt * k_max * Bh
         exp_max = expm(Prop_kmax)
         del Prop_Ba, Prop_kmax
     
@@ -449,10 +884,6 @@ def LCHS_computation(k, dt, Hi, psi_init, Nt_steps, flag_trotterization, flag_pr
 
         if flag_trotterization:
             if Nt_steps > 0:
-                # if not flag_trotterization:
-                #     Prop_k = -1.j * dt * (Ba + k[ik]*Bh) # here, use Trotterization
-                #     exp_dt = expm(Prop_k)
-                # else:
                 Prop_k = -1.j * dt * (ik * dk) * Bh
                 exp_dt = exp_max.dot(expm(Prop_k))
                 exp_dt = exp_dt.dot(exp_Ba)
@@ -461,7 +892,7 @@ def LCHS_computation(k, dt, Hi, psi_init, Nt_steps, flag_trotterization, flag_pr
                 for _ in range(Nt_steps):
                     temp = exp_dt.dot(temp)
         else:
-            Prop_k = -1.j * dt * Nt_steps * (Ba + k[ik]*Bh) # here, use Trotterization
+            Prop_k = -1.j * dt * Nt_steps * (Ba + k[ik]*Bh)  # here, use Trotterization
             temp = expm(Prop_k)
 
         exp_LCHS += wk[ik] * temp
@@ -483,6 +914,96 @@ def LCHS_computation(k, dt, Hi, psi_init, Nt_steps, flag_trotterization, flag_pr
     if flag_print:
         print()
         print("sum psi_t_max[max-time]**2: {:0.3e}".format(np.sum(np.abs(psi_t)**2)))
+    return psi_t
+
+
+# ------------------------------------------------------------------------------------------------
+def LCHS_computation_DEBUG(k, dt, Hi, psi_init, Nt_steps, sel_test, flag_trotterization):
+    dk = np.diff(k)[0]
+    k_max = k[-1]
+    Nk = len(k)
+
+    Bh, Ba = get_herm_aherm_parts(Hi)
+    wk = comp_LCHS_weights(k)
+    N = Hi.shape[0]
+    
+    exp_max = None
+    exp_Ba = None
+    if flag_trotterization:
+        Prop_Ba = -1.j * dt/2. * Ba 
+        exp_Ba = expm(Prop_Ba)
+        Prop_kmax = 1.j * dt * k_max * Bh 
+        exp_max = expm(Prop_kmax)
+        del Prop_Ba, Prop_kmax
+    
+    exp_LCHS = np.zeros((N,N), dtype=complex)
+    for ik in range(Nk):
+        temp = np.identity(N, dtype=complex)
+
+        if flag_trotterization:
+            if Nt_steps > 0:
+                # --- test 1 : just selector ---
+                if sel_test == 1:
+                    Prop_k = -1.j * dt  * (ik * dk) * Bh
+                    exp_dt = expm(Prop_k)
+
+                # --- test 2:  without selector ---
+                if sel_test == 2:
+                    exp_dt = exp_max.dot(exp_Ba)
+                    exp_dt = exp_Ba.dot(exp_dt)
+
+                # --- test 3:  only Bmax ---
+                if sel_test == 3:
+                    exp_dt = np.array(exp_max)
+
+                # --- test 4:  only Ba ---
+                if sel_test == 4 or sel_test == 7:
+                    exp_dt = np.array(exp_Ba)
+
+                # --- original ---
+                if sel_test == 5 or sel_test == 6 or sel_test == 12:
+                    Prop_k = -1.j * dt * (ik * dk) * Bh
+                    exp_dt = exp_max.dot(expm(Prop_k))
+                    exp_dt = exp_dt.dot(exp_Ba)
+                    exp_dt = exp_Ba.dot(exp_dt)
+                        
+                for _ in range(Nt_steps):
+                    temp = exp_dt.dot(temp)
+        else:
+            Prop_k = -1.j * dt * Nt_steps * (Ba + k[ik]*Bh)
+            temp = expm(Prop_k)
+
+        if sel_test > 5:
+            exp_LCHS += wk[ik] * temp # original
+        else:
+            exp_LCHS += temp # without weights
+         
+    # compute the output quantum state:
+    psi_t = exp_LCHS.dot(psi_init)
+    return psi_t
+
+
+# ------------------------------------------------------------------------------------------------
+def LCHS_computation_DEBUG_2(k, dt, Hi, psi_init, Nt_steps):
+    dk = np.diff(k)[0]
+    k_max = k[-1]
+    Nk = len(k)
+
+    Bh, Ba = get_herm_aherm_parts(Hi)
+    wk = comp_LCHS_weights(k)
+    N = Hi.shape[0]
+    
+    exp_LCHS = np.zeros((N,N), dtype=complex)
+    temp = np.identity(N, dtype=complex)
+
+    Prop_k = -1.j * dt  * dk * Bh
+    exp_dt = expm(Prop_k)
+    for _ in range(Nt_steps):
+        temp = exp_dt.dot(temp)
+    exp_LCHS += np.sqrt(wk[1]) * temp 
+         
+    # compute the output quantum state:
+    psi_t = exp_LCHS.dot(psi_init)
     return psi_t
 
 
@@ -592,14 +1113,14 @@ def compute_norm_matrices_LCHS(
         factor_global_kmax = 1.0,
         factor_global_k    = 1.0,
 ):
-    Ba     = Aa
+    Ba     = np.array(Aa)
     B_kmax = - kmax * Ah
     Bk     =     dk * Ah
 
     # --- Normalize the matrices ---
-    Ba_norm,     ncoef_a,    nonsparsity_a_    = mix.compute_normalized_matrix(Ba,     "Ba")
-    B_kmax_norm, ncoef_kmax, nonsparsity_kmax_ = mix.compute_normalized_matrix(B_kmax, "B_kmax")
-    Bk_norm,     ncoef_k,    nonsparsity_k_    = mix.compute_normalized_matrix(Bk,     "Bk")
+    Ba_norm,     ncoef_a,    nonsparsity_a_    = mix.compute_normalized_matrix(Ba,     "Ba", True)
+    B_kmax_norm, ncoef_kmax, nonsparsity_kmax_ = mix.compute_normalized_matrix(B_kmax, "B_kmax", True)
+    Bk_norm,     ncoef_k,    nonsparsity_k_    = mix.compute_normalized_matrix(Bk,     "Bk", True)
     print()
     print("norm of Ba_norm_:     {:0.3f}".format(mix.find_norm_of_matrix(Ba_norm)))
     print("norm of B_kmax_norm_: {:0.3f}".format(mix.find_norm_of_matrix(B_kmax_norm)))
@@ -611,15 +1132,29 @@ def compute_norm_matrices_LCHS(
         dt_kmax = ncoef_kmax * t_step      * factor_global_kmax
         dt_k    = ncoef_k    * t_step      * factor_global_k
         print("\n--- Time steps ---")
-        print("dt_a:    {:0.6e}".format(dt_a))
-        print("dt_kmax: {:0.6e}".format(dt_kmax))
-        print("dt_k:    {:0.6e}".format(dt_k))
+        print("dt_a, dt_kmax, dt_k: {:0.12e}, {:0.12e}, {:0.12e}".format(dt_a, dt_kmax, dt_k))
     return Ba_norm, B_kmax_norm, Bk_norm
 
 
 # ------------------------------------------------------------------------------------------------
-def plot_save_diagonals(A_plot, A_name, flag_save, flag_save_real, path_save):
+def compute_norm_matrices_LCHS_with_output_norm(Aa, Ah, kmax, dk):
+    Ba     = np.array(Aa)
+    B_kmax = - kmax * Ah
+    Bk     =     dk * Ah
 
+    # --- Normalize the matrices ---
+    Ba_norm,     ncoef_a,    nonsparsity_a_    = mix.compute_normalized_matrix(Ba,     "Ba", True)
+    B_kmax_norm, ncoef_kmax, nonsparsity_kmax_ = mix.compute_normalized_matrix(B_kmax, "B_kmax", True)
+    Bk_norm,     ncoef_k,    nonsparsity_k_    = mix.compute_normalized_matrix(Bk,     "Bk", True)
+    print()
+    print("norm of Ba_norm_:     {:0.3f}".format(mix.find_norm_of_matrix(Ba_norm)))
+    print("norm of B_kmax_norm_: {:0.3f}".format(mix.find_norm_of_matrix(B_kmax_norm)))
+    print("norm of Bk_norm_:     {:0.3f}".format(mix.find_norm_of_matrix(Bk_norm)))
+    return Ba_norm, B_kmax_norm, Bk_norm, ncoef_a, ncoef_kmax, ncoef_k
+
+
+# ------------------------------------------------------------------------------------------------
+def plot_save_diagonals(A_plot, A_name, flag_save, flag_save_real, path_save):
     def save_data(rows_loc, diag_loc, sh_loc):
         full_name = path_save + "//" + A_name + "_diag_{:d}".format(sh_loc)
         if flag_save_real:
@@ -639,13 +1174,12 @@ def plot_save_diagonals(A_plot, A_name, flag_save, flag_save_real, path_save):
     sh_3 = -1
     diag_3, rows_3 = get_diag(A_plot, i_shift = sh_3)
 
-
     # --- Real parts ---
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax.plot(rows_1, diag_1.real, color='b', linewidth = 2, linestyle='-', label = "shift = {:d}".format(sh_1))
-    ax.plot(rows_2, diag_2.real, color='r', linewidth = 2, linestyle='--', label = "shift = {:d}".format(sh_2))
-    ax.plot(rows_3, diag_3.real, color='g', linewidth = 2, linestyle='--', label = "shift = {:d}".format(sh_3))
+    ax.plot(rows_1, diag_1.real, color='b', marker = "o", linewidth = 2, linestyle='-', label = "shift = {:d}".format(sh_1))
+    ax.plot(rows_2, diag_2.real, color='r', marker = "o", linewidth = 2, linestyle='--', label = "shift = {:d}".format(sh_2))
+    ax.plot(rows_3, diag_3.real, color='g', marker = "o", linewidth = 2, linestyle='--', label = "shift = {:d}".format(sh_3))
     plt.xlabel('row')
     plt.ylabel("Re")
     plt.title("Real parts of {:s}".format(A_name))
@@ -656,9 +1190,9 @@ def plot_save_diagonals(A_plot, A_name, flag_save, flag_save_real, path_save):
     # --- Imaginary parts ---
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax.plot(rows_1, diag_1.imag, color='b', linewidth = 2, linestyle='-', label = "shift = {:d}".format(sh_1))
-    ax.plot(rows_2, diag_2.imag, color='r', linewidth = 2, linestyle='--', label = "shift = {:d}".format(sh_2))
-    ax.plot(rows_3, diag_3.imag, color='g', linewidth = 2, linestyle='--', label = "shift = {:d}".format(sh_3))
+    ax.plot(rows_1, diag_1.imag, color='b', marker = "o", linewidth = 2, linestyle='-',  label = "shift = {:d}".format(sh_1))
+    ax.plot(rows_2, diag_2.imag, color='r', marker = "o", linewidth = 2, linestyle='--', label = "shift = {:d}".format(sh_2))
+    ax.plot(rows_3, diag_3.imag, color='g', marker = "o", linewidth = 2, linestyle='--', label = "shift = {:d}".format(sh_3))
     plt.xlabel('row')
     plt.ylabel("Im")
     plt.title("Imag parts of {:s}".format(A_name))

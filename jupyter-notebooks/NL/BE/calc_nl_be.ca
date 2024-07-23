@@ -3,8 +3,8 @@
 
 // The name of the file (without .hdf5 ) with coefficients describing 
 //		the polynomial approximation of the chosen function:
-filename_coefs    coefs/prof_kmax_p1__eps14
-output_name     kmax_p1_eps14
+filename_coefs  coefs/Da_nx7_sin_eps15
+output_name    angles_Da_nx7_sin_eps15
 
 // stopping parameter:
 stopping_criterion 1e-12
