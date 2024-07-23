@@ -1936,3 +1936,12 @@ def get_Cheb_roots(Nx_loc):
         x_roots[ii] = np.cos((2*ii + 1)*np.pi / (2.*Nx_loc))
     x_roots = np.flip(x_roots)
     return x_roots
+
+
+# ------------------------------------------------------------------------------------------
+def get_order_base10(v):
+    if v == 0:
+        return 0
+    expon = np.floor(np.log10(abs(v)))
+    mantissa = v / 10**expon
+    return mantissa, int(expon)

@@ -19,8 +19,8 @@ archive
 python3
 
 
-
-
-
-
+tools/QSVT-angles/inversion/estimated-angles/est_mi_k5e5_*
+tools/QSVT-angles/inversion/estimated-angles/est_mi_k1e6_*
+tools/QSVT-angles/inversion/estimated-angles/est_mi_k5e6_*
+tools/QSVT-angles/inversion/estimated-angles/est_mi_k1e7_*
 

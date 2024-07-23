@@ -25,12 +25,6 @@ def read_ref_QSVT_angles(id_case = 0, Ncoefs = 40):
     # the name of the output file:
     fname_ = "QSVT-MI-estimation-coefs-case{:d}-Nc{:d}.hdf5".format(id_case, Ncoefs)
 
-    # paths where pre-computed QSVT angles are saved and
-    #     where resulting parameters for the estimation of the QSVT angles will be saved:
-    path_root_       = "./tools/QSVT-angles/inversion/"
-    path_root_ref = "./tools/QSVT-angles/inversion/ref-angles"
-    path_save_plots_ = path_root_ + "/saved-plots/"
-
     # -------------------------------------------------------------------------
     if id_case == 0:
         # names of the .hdf5 files where pre-computed QSVT angles are saved:
@@ -174,7 +168,7 @@ def read_ref_QSVT_angles(id_case = 0, Ncoefs = 40):
         print("\n----------------------------------------")
         dds_.append(qsvt_a.read_angles(path_root_ref, filenames[ii]))
     del ii
-    return dds_, id_comp_, fname_, path_root_, path_save_plots_
+    return dds_, id_comp_, fname_
 
 
 # ----------------------------------------------------------------------------------------
@@ -1189,9 +1183,7 @@ def construct_inverse_function_GPU_X1(phis, kappa, coef_norm_qsvt, x_grid):
 def store_estimation(
         dd, fname, path_root,
         coefs_ampl_neg, coefs_ampl_pos,
-        coefs_Na_neg, coefs_Na_pos,
-        coefs_shape_neg, coefs_shape_pos,
-        N_half_env_neg, N_half_env_pos
+        coefs_shape_neg, coefs_shape_pos
     ):
     from datetime import datetime
     from datetime import date
@@ -1215,16 +1207,11 @@ def store_estimation(
         grp.create_dataset('descr',  data="for-inversion")
         grp.create_dataset('param-ref',  data=float(kappa_ref))
 
-        grp.create_dataset('N-env-half-neg', data=int(N_half_env_neg))
-        grp.create_dataset('N-env-half-pos', data=int(N_half_env_pos))
+        grp.create_dataset('Na-ref', data=int(len(dd["phis"])))
 
         grp = f.create_group("coefs-amplitude")
         grp.create_dataset('neg',  data = coefs_ampl_neg)
         grp.create_dataset('pos',  data = coefs_ampl_pos)
-
-        grp = f.create_group("coefs-Na")
-        grp.create_dataset('neg',  data = coefs_Na_neg)
-        grp.create_dataset('pos',  data = coefs_Na_pos)
 
         grp = f.create_group("coefs-envelop")
         grp.create_dataset('neg',  data = coefs_shape_neg)
@@ -1242,19 +1229,16 @@ def read_estimation(id_case = 0, Ncoefs = 40, path_root = "./tools/QSVT-angles/i
     with h5py.File(full_fname, "r") as f:
         grp = f["basic"]
         date_comp = grp["date-of-simulation"][()].decode("utf-8")
-        dd["factor-norm"] = grp["coef_norm"][()]
         line_descr = grp["descr"][()].decode("utf-8")
-        dd["kappa"] = grp["param-ref"][()]
-        dd["N-env-half-neg"] = int(grp['N-env-half-neg'][()])
-        dd["N-env-half-pos"] = int(grp['N-env-half-pos'][()])
+
+        dd["factor-norm"] = grp["coef_norm"][()]
+        dd["kappa-ref"] = grp["param-ref"][()]
+
+        dd["Na-ref"] = int(grp['Na-ref'][()])
 
         grp = f["coefs-amplitude"]
         dd["coefs-ampl-neg"] = np.array(grp["neg"])
         dd["coefs-ampl-pos"] = np.array(grp["pos"])
-
-        grp = f["coefs-Na"]
-        dd["coefs-Na-neg"] = np.array(grp["neg"])
-        dd["coefs-Na-pos"] = np.array(grp["pos"])
 
         grp = f["coefs-envelop"]
         dd["coefs-env-neg"] = np.array(grp["neg"])
@@ -1263,10 +1247,9 @@ def read_estimation(id_case = 0, Ncoefs = 40, path_root = "./tools/QSVT-angles/i
     print("When simulated: ", date_comp)
     print("Data: {:s}".format(line_descr))
     print()
-    print("kappa-reference: {:0.3f}".format(dd["kappa"]))
+    print("kappa-reference: {:0.3f}".format(dd["kappa-ref"]))
     print("factor-norm: {:0.3f}".format(dd["factor-norm"]))
-    print("N-env-half-neg: {:d}".format(dd["N-env-half-neg"]))
-    print("N-env-half-pos: {:d}".format(dd["N-env-half-pos"]))
+    print("Na-ref: {:d}".format(dd["Na-ref"]))
     print("N-coefs-envelope-neg: {:d}".format(len(dd["coefs-env-neg"])))
     print("N-coefs-envelope-pos: {:d}".format(len(dd["coefs-env-pos"])))
     return dd
@@ -1276,8 +1259,10 @@ def read_estimation(id_case = 0, Ncoefs = 40, path_root = "./tools/QSVT-angles/i
 # --- Read the estimated parameters for the QSVT angles ---
 def save_estimated_angles(
         kappa_target, dd, phis_approx, id_case, Nc, 
-        path_root = "./tools/QSVT-angles/inversion/estimated-angles-Na-k/"
-        # path_root = "./tools/QSVT-angles/inversion/estimated-angles-Na-k-logk/"
+        path_root = "./tools/QSVT-angles/inversion/estimated-angles/",
+        # path_root = "./tools/QSVT-angles/inversion/estimated-angles-Na-k/",
+        # path_root = "./tools/QSVT-angles/inversion/estimated-angles-Na-k-logk/",
+        flag_variation = False
 ):
     from datetime import datetime
     from datetime import date
@@ -1286,7 +1271,12 @@ def save_estimated_angles(
     curr_time = date.today().strftime("%m/%d/%Y") + ": " + datetime.now().strftime("%H:%M:%S")
 
     # --- Create the filename ---
-    fname = "{:s}_k{:d}_ref{:d}_Nc{:d}.hdf5".format("est_mi", int(kappa_target), id_case, Nc)
+    km, ke = mix.get_order_base10(kappa_target)
+    str_k = "{:0.0f}e{:d}".format(km, ke)
+    fname = "{:s}_k{:s}_ref{:d}_Nc{:d}".format("est_mi", str_k, id_case, Nc)
+    if flag_variation:
+        fname += "_ADV"
+    fname += ".hdf5"
     full_fname = path_root + "/" + fname
 
     # --- Store data ---
@@ -1307,33 +1297,6 @@ def save_estimated_angles(
 
 
 # ----------------------------------------------------------------------------------------
-def reproduce_env_PREV(coefs_envelop, coefs_ampl, N_env_half, kappa_goal):
-        # - the number of peaks in the half of the envelope -
-        x = np.linspace(0.0, 1.0, N_env_half)
-        # Nx = len(x)
-        
-        # - construct the half of the normalized envelope --
-        env_half = np_build_func_even_Ch(x, coefs_envelop)
-
-        # Nc = len(coefs_envelop)
-        # env_half = np.zeros(Nx)
-        # for ix in range(Nx):
-        #     env_half[ix] = 0.
-        #     for ii in range(Nc):
-        #         env_half[ix] += coefs_envelop[ii] * np.cos((2*ii) * np.arccos(x[ix]))
-
-        # - full envelope -
-        full_env = np.concatenate(( env_half, np.flip(env_half) ))
-
-        # - Rescale the envelope angles -
-        max_ampl = np_build_func_ampl(kappa_goal, coefs_ampl)
-        # max_ampl = coefs_ampl[0]
-        # for ii in range(1, len(coefs_ampl)):
-        #     max_ampl += coefs_ampl[ii] / kappa_goal**ii
-        full_env *= np.abs(max_ampl)
-        return full_env
-
-
 def reproduce_env(coefs_envelop, coefs_ampl, N_env_half, kappa_goal):
         # - the number of peaks in the half of the envelope -
         x = np.linspace(0.0, 1.0, N_env_half)
@@ -1410,6 +1373,13 @@ def estimate_angles(
         N_env_pos = N_env
         return N_env_neg, N_env_pos
     # --------------------------------------------------
+    if not flag_variation:
+        print("--- Standard estimation of the QSVT angles. ---")
+    else:
+        print("--- Advanced estimation of the QSVT angles. ---")
+    print("kappa-target: {:0.3e}".format(kappa_goal))
+
+
     coef_norm = dd["factor-norm"]
     kappa_ref = dd["kappa-ref"]
     Na_ref = dd["Na-ref"]

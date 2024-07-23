@@ -856,8 +856,6 @@ def comp_LCHS_weights(k):
 
 # ------------------------------------------------------------------------------------------------
 def LCHS_computation(k, dt, Hi, psi_init, Nt_steps, flag_trotterization, flag_print = False):
-    # if flag_direct = False, use 2nd order Trotterization.
-
     # k-grid:
     dk = np.diff(k)[0]
     k_max = k[-1]
