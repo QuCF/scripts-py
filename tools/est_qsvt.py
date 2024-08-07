@@ -1272,7 +1272,7 @@ def save_estimated_angles(
 
     # --- Create the filename ---
     km, ke = mix.get_order_base10(kappa_target)
-    str_k = "{:0.0f}e{:d}".format(km, ke)
+    str_k = "{:0.1f}e{:d}".format(km, ke)
     fname = "{:s}_k{:s}_ref{:d}_Nc{:d}".format("est_mi", str_k, id_case, Nc)
     if flag_variation:
         fname += "_ADV"
