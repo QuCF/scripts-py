@@ -19,8 +19,14 @@ archive
 python3
 
 
-tools/QSVT-angles/inversion/estimated-angles/est_mi_k5e5_*
-tools/QSVT-angles/inversion/estimated-angles/est_mi_k1e6_*
-tools/QSVT-angles/inversion/estimated-angles/est_mi_k5e6_*
-tools/QSVT-angles/inversion/estimated-angles/est_mi_k1e7_*
+tools/QSVT-angles/inversion/estimated-angles/est_mi_k*e5_*
+tools/QSVT-angles/inversion/estimated-angles/est_mi_k*e6_*
+tools/QSVT-angles/inversion/estimated-angles/est_mi_k*e7_*
+
+tools/QSVT-angles/inversion/estimated-angles/est_mi_k9*e4_*
+
+# tools/QSVT-angles/inversion/estimated-angles/est_mi_k5e5_*
+# tools/QSVT-angles/inversion/estimated-angles/est_mi_k1e6_*
+# tools/QSVT-angles/inversion/estimated-angles/est_mi_k5e6_*
+# tools/QSVT-angles/inversion/estimated-angles/est_mi_k1e7_*
 
