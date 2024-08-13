@@ -1272,7 +1272,7 @@ def save_estimated_angles(
 
     # --- Create the filename ---
     km, ke = mix.get_order_base10(kappa_target)
-    str_k = "{:0.0f}e{:d}".format(km, ke)
+    str_k = "{:0.1f}e{:d}".format(km, ke)
     fname = "{:s}_k{:s}_ref{:d}_Nc{:d}".format("est_mi", str_k, id_case, Nc)
     if flag_variation:
         fname += "_ADV"
@@ -1385,15 +1385,23 @@ def estimate_angles(
     Na_ref = dd["Na-ref"]
 
     # --- Estimate the number of angles ---
+    print("\n--- Estimating the number of QSVT angles... ---")
     N_env_half_neg, N_env_half_pos, Na_new = reproduce_Nenv(Na_ref, kappa_ref, kappa_goal)
+    print("Done.")
 
     # --- Estimation of the QSVT angles ---
+    print("\n--- Reproducing the angles' shape ... ---")
     coef_env_neg, coef_ampl_neg = dd["coefs-env-neg"], dd["coefs-ampl-neg"]
     coef_env_pos, coef_ampl_pos = dd["coefs-env-pos"], dd["coefs-ampl-pos"]
     env_neg = reproduce_env(coef_env_neg, coef_ampl_neg, N_env_half_neg, kappa_goal)
     env_pos = reproduce_env(coef_env_pos, coef_ampl_pos, N_env_half_pos, kappa_goal)
+    print("Done.")
+
+
+    print("\n--- Reconstructing the angles ... ---")
     phis_appr_best = construct_angles_from_envelops(env_neg, env_pos)
     del env_neg, env_pos
+    print("Done.")
 
     N_env_PREV = N_env_half_neg
     del N_env_half_neg, N_env_half_pos
