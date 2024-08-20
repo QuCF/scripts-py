@@ -290,7 +290,8 @@ def plot_max(dds, flag_save, path_save_plots):
         mix.save_dat_plot_1d_file(
             path_save_plots + "/log_angles_max_vs_kappa.dat", 
             kappas, 
-            np.log10(array_pos)
+            array_pos
+            # np.log10(array_pos)
         )
     return
 
