@@ -602,6 +602,12 @@ def compute_coefs_amplitudes(dds, Ncoefs, flag_save, path_save_plots):
     coefs_neg = est_coefs(neg_maxs, "neg")
     coefs_pos = est_coefs(pos_maxs, "pos")
 
+    print("\n--- pos ampl: coefs ---")
+    print(coefs_pos)
+
+    print("\n--- neg ampl: coefs ---")
+    print(coefs_neg)
+
     # --- Saving data ---
     if flag_save:
         mix.save_dat_plot_1d_file(path_save_plots + "/neg_ampls.dat", kappas, neg_maxs)
