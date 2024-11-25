@@ -290,7 +290,8 @@ def plot_max(dds, flag_save, path_save_plots):
         mix.save_dat_plot_1d_file(
             path_save_plots + "/log_angles_max_vs_kappa.dat", 
             kappas, 
-            np.log10(array_pos)
+            array_pos
+            # np.log10(array_pos)
         )
     return
 
@@ -600,6 +601,12 @@ def compute_coefs_amplitudes(dds, Ncoefs, flag_save, path_save_plots):
         neg_maxs[count_pr] = np.min(phis)
     coefs_neg = est_coefs(neg_maxs, "neg")
     coefs_pos = est_coefs(pos_maxs, "pos")
+
+    print("\n--- pos ampl: coefs ---")
+    print(coefs_pos)
+
+    print("\n--- neg ampl: coefs ---")
+    print(coefs_neg)
 
     # --- Saving data ---
     if flag_save:

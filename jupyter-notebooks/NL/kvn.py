@@ -841,16 +841,28 @@ def compute_mean_1D(x, Nt, psi_tx_matrix):
 
 
 # ------------------------------------------------------------------------------------------------
-def comp_LCHS_weights(k):
+def comp_LCHS_weights(k, flag_Eff = False, arr_theta = None):
     dk = np.diff(k)[0]
     Nk = len(k)
 
     wk = np.zeros(Nk)
-    for ik in range(Nk):
-        wk[ik] = 1. / (1 + k[ik]*k[ik])
-    wk = wk * dk/np.pi
-    wk[0]  = 0.5 * wk[0]
-    wk[-1] = 0.5 * wk[-1]  
+    if not flag_Eff:
+        for ik in range(Nk):
+            wk[ik] = 1. / (1 + k[ik]*k[ik])
+        wk = wk * dk/np.pi
+        wk[0]  = 0.5 * wk[0]
+        wk[-1] = 0.5 * wk[-1]  
+    else:
+        kmax = k[-1]
+        kmax2 = kmax**2
+
+        d_theta = np.diff(arr_theta)[0]
+        # d_theta_2 = np.pi / (Nk-1)
+        # print("{:0.12e}".format(d_theta - d_theta_2))
+
+        for ik in range(Nk):
+            wk[ik] = np.cos(arr_theta[ik]) / (1 + kmax2 * np.sin(arr_theta[ik])**2)
+        wk = wk * kmax * d_theta / np.pi
     return wk
 
 
@@ -892,7 +904,7 @@ def LCHS_computation(k, dt, Hi, psi_init, Nt_steps, flag_trotterization, flag_pr
                 for _ in range(Nt_steps):
                     temp = exp_dt.dot(temp)
         else:
-            Prop_k = -1.j * dt * Nt_steps * (Ba + k[ik]*Bh)  # here, use Trotterization
+            Prop_k = -1.j * dt * Nt_steps * (Ba + k[ik]*Bh)  
             temp = expm(Prop_k)
 
         exp_LCHS += wk[ik] * temp
@@ -917,122 +929,69 @@ def LCHS_computation(k, dt, Hi, psi_init, Nt_steps, flag_trotterization, flag_pr
     return psi_t
 
 
+
 # ------------------------------------------------------------------------------------------------
-def LCHS_computation_DEBUG(k, dt, Hi, psi_init, Nt_steps, sel_test, flag_trotterization):
-    dk = np.diff(k)[0]
+def LCHS_computation_EFF(k, t, Hi, psi_init):
     k_max = k[-1]
     Nk = len(k)
-
-    Bh, Ba = get_herm_aherm_parts(Hi)
-    wk = comp_LCHS_weights(k)
-    N = Hi.shape[0]
-    
-    exp_max = None
-    exp_Ba = None
-    if flag_trotterization:
-        Prop_Ba = -1.j * dt/2. * Ba 
-        exp_Ba = expm(Prop_Ba)
-        Prop_kmax = 1.j * dt * k_max * Bh 
-        exp_max = expm(Prop_kmax)
-        del Prop_Ba, Prop_kmax
-    
-    exp_LCHS = np.zeros((N,N), dtype=complex)
-    for ik in range(Nk):
-        temp = np.identity(N, dtype=complex)
-
-        if flag_trotterization:
-            if Nt_steps > 0:
-                # --- test 1 : just selector ---
-                if sel_test == 1:
-                    Prop_k = -1.j * dt  * (ik * dk) * Bh
-                    exp_dt = expm(Prop_k)
-
-                # --- test 2:  without selector ---
-                if sel_test == 2:
-                    exp_dt = exp_max.dot(exp_Ba)
-                    exp_dt = exp_Ba.dot(exp_dt)
-
-                # --- test 3:  only Bmax ---
-                if sel_test == 3:
-                    exp_dt = np.array(exp_max)
-
-                # --- test 4:  only Ba ---
-                if sel_test == 4 or sel_test == 7:
-                    exp_dt = np.array(exp_Ba)
-
-                # --- original ---
-                if sel_test == 5 or sel_test == 6 or sel_test == 12:
-                    Prop_k = -1.j * dt * (ik * dk) * Bh
-                    exp_dt = exp_max.dot(expm(Prop_k))
-                    exp_dt = exp_dt.dot(exp_Ba)
-                    exp_dt = exp_Ba.dot(exp_dt)
-                        
-                for _ in range(Nt_steps):
-                    temp = exp_dt.dot(temp)
-        else:
-            Prop_k = -1.j * dt * Nt_steps * (Ba + k[ik]*Bh)
-            temp = expm(Prop_k)
-
-        if sel_test > 5:
-            exp_LCHS += wk[ik] * temp # original
-        else:
-            exp_LCHS += temp # without weights
-         
-    # compute the output quantum state:
-    psi_t = exp_LCHS.dot(psi_init)
-    return psi_t
-
-
-# ------------------------------------------------------------------------------------------------
-def LCHS_computation_DEBUG_2(k, dt, Hi, psi_init, Nt_steps):
-    dk = np.diff(k)[0]
-    k_max = k[-1]
-    Nk = len(k)
-
-    Bh, Ba = get_herm_aherm_parts(Hi)
-    wk = comp_LCHS_weights(k)
-    N = Hi.shape[0]
-    
-    exp_LCHS = np.zeros((N,N), dtype=complex)
-    temp = np.identity(N, dtype=complex)
-
-    Prop_k = -1.j * dt  * dk * Bh
-    exp_dt = expm(Prop_k)
-    for _ in range(Nt_steps):
-        temp = exp_dt.dot(temp)
-    exp_LCHS += np.sqrt(wk[1]) * temp 
-         
-    # compute the output quantum state:
-    psi_t = exp_LCHS.dot(psi_init)
-    return psi_t
-
-
-# ------------------------------------------------------------------------------------------------
-def LCHS_computation_FAKE(k, dt, Hi, psi_init, Nt_loc):
-    # k-grid:
-    dk = np.diff(k)[0]
-    Nk = len(k)
+    arr_theta = np.linspace(-np.pi/2., np.pi/2., Nk)
 
     # matrices:
-    Bh, _ = get_herm_aherm_parts(Hi)
-    wk = comp_LCHS_weights(k)
+    Bh, Ba = get_herm_aherm_parts(Hi)
+    wk = comp_LCHS_weights(k, flag_Eff = True, arr_theta = arr_theta)
     N = Hi.shape[0]
-    
+
     exp_LCHS = np.zeros((N,N), dtype=complex)
     for ik in range(Nk):
-        temp = np.identity(N, dtype=complex)
-        Prop_k = -1.j * dt * (ik * dk) * Bh
-        exp_dt = expm(Prop_k)
-            
-        for _ in range(Nt_loc):
-            temp = exp_dt.dot(temp)
-        # exp_LCHS += wk[ik] * temp
-        exp_LCHS += temp
-    del temp, Prop_k, exp_dt, ik
-           
+        Prop_k = -1.j * t * (Ba + k_max * np.sin(arr_theta[ik]) * Bh)  
+        temp = expm(Prop_k)
+        exp_LCHS += wk[ik] * temp
+         
     # compute the output quantum state:
     psi_t = exp_LCHS.dot(psi_init)
     return psi_t
+
+
+
+# ------------------------------------------------------------------------------------------------
+def comp_LCHS_weights_OPT(kmax, Nk, beta):
+    arr_theta = np.linspace(-np.pi/2., np.pi/2., Nk)
+    d_theta = np.diff(arr_theta)[0]
+    k = kmax * np.sin(arr_theta)
+
+    v1 = kmax * d_theta * np.cos(arr_theta)
+    v2 = 2. * np.pi * np.exp(-(2.**beta)) * np.exp((1+1j*k)**beta) * (1 - 1j*k)
+    wk = v1 / v2
+
+    # coef_dk = kmax * d_theta / (2. * np.pi * np.exp(-2.**beta) )
+    # fk = 1. / np.exp((1+1j*k)**beta)
+    # wk = coef_dk * fk * np.cos(arr_theta) / (1 - 1j*k)
+    return wk
+
+
+# ------------------------------------------------------------------------------------------------
+def LCHS_computation_OPT(k, t, beta, Hi, psi_init):
+    k_max = k[-1]
+    Nk = len(k)
+    arr_theta = np.linspace(-np.pi/2., np.pi/2., Nk)
+
+    # matrices:
+    Bh, Ba = get_herm_aherm_parts(Hi)
+    wk = comp_LCHS_weights_OPT(k_max, Nk, beta)
+    N = Hi.shape[0]
+
+    exp_LCHS = np.zeros((N,N), dtype=complex)
+    for ik in range(Nk):
+        Prop_k = -1.j * t * (Ba + k_max * np.sin(arr_theta[ik]) * Bh)  
+        temp = expm(Prop_k)
+        exp_LCHS += wk[ik] * temp
+         
+    # compute the output quantum state:
+    psi_t = exp_LCHS.dot(psi_init)
+    return psi_t
+
+
+
 
 
 # ------------------------------------------------------------------------------------------------
