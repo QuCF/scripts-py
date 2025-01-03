@@ -1,0 +1,12 @@
+// to launch: $qucf_angles calc_inv
+
+
+// The name of the file (without .hdf5 ) with coefficients describing 
+//		the polynomial approximation of the chosen function:
+filename_coefs    inversion_20.000000_3
+output_name       k20_eps3
+
+
+// stopping parameter:
+stopping_criterion 1e-12
+
