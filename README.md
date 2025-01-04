@@ -1,2 +1,2 @@
 # scripts-py
-Python scripts mostly for the postprocessing.
+Python scripts and notebooks for post-processing [QuCF](https://github.com/QuCF/QuCF) simulations.

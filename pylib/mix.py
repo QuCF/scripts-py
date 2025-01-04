@@ -4,8 +4,9 @@ import h5py
 # import pylib.Global_variables as GLO
 import sys
 from scipy.optimize import fsolve
-from numba import jit
+from numba import jit, njit
 from termcolor import colored
+import matplotlib.pyplot as plt
 
 try:
     import pylib.Global_variables as GLO
@@ -1945,3 +1946,66 @@ def get_order_base10(v):
     expon = np.floor(np.log10(abs(v)))
     mantissa = v / 10**expon
     return mantissa, int(expon)
+
+
+# ------------------------------------------------------------------------------------------
+def compute_wigner(psi, x_grid, p_grid, Nxi, xi_max, hbar = 1):
+        @njit(parallel=True)
+        def wigner_function(id_x):
+            # --- Compute the Wigner function for the wavefunction psi ---
+            Np = len(p_grid)
+            coef_pi = 1.
+            
+            W = np.zeros(Np)
+            for id_p in range(Np):
+                p1 = p_grid[id_p]
+
+                integrand = np.array([
+                    psi_shift_pl[id_x, id_xi] * psi_shift_mi[id_x, id_xi] * 
+                        np.exp(-1j * coef_pi * p1 * xi_grid[id_xi] / hbar)
+                    for id_xi in range(len(xi_grid))
+                ])
+                W[id_p] = np.trapz(integrand, xi_grid).real
+            return W
+        # -----------------------------------------------------
+        Nx = len(x_grid)
+
+        xi_grid = np.linspace(-xi_max, xi_max, Nxi) # integration variable
+
+        psi_shift_pl = np.zeros((Nx, Nxi), dtype=complex)
+        psi_shift_mi = np.zeros((Nx, Nxi), dtype=complex)
+        for id_xi in range(Nxi):
+            xi1 = xi_grid[id_xi]
+            psi_shift_pl[:, id_xi] = np.conj(np.interp(x_grid + xi1 / 2., x_grid, psi))
+            psi_shift_mi[:, id_xi] = np.interp(x_grid - xi1 / 2., x_grid, psi)
+
+        W = np.array([wigner_function(id_x) for id_x in range(Nx)])
+        W *= 1./(2.*np.pi*hbar)
+        return W
+
+
+# ------------------------------------------------------------------------------------------
+def plot_Wigner(x, p, W, fontsize = 16, str_for_title = None):
+    # Create phase space
+    X, P = np.meshgrid(x, p)
+
+    # --- Plotting ---
+    fig = plt.figure(figsize=(8, 6))
+    ax = fig.add_subplot(111)
+    cs = ax.contourf(X, P, W.T, levels = 100)
+
+    cb = fig.colorbar(cs, ax = ax)
+    cb.ax.ticklabel_format(style="scientific", scilimits = (-1,1))
+    cb.ax.tick_params(labelsize=fontsize) 
+    cb.ax.yaxis.get_offset_text().set_fontsize(fontsize)
+
+    ax.set_xlabel("x", fontsize = fontsize)
+    ax.set_ylabel("p", fontsize = fontsize)
+    ax.tick_params(axis='both', which='major', labelsize=fontsize)
+
+    ax.grid(linewidth=0.1)
+    line_title = "W(x,p)"
+    if str_for_title is not None:
+        line_title += ": {:s}".format(str_for_title)
+    ax.set_title(line_title, fontsize = fontsize)
+    return
