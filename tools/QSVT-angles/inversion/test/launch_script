@@ -1,6 +1,0 @@
-
-
-$qucf_pol -sel_function inversion -param 20 -Nd 400
-$qucf_angles calc_inv ./
-
-

@@ -1,0 +1,3 @@
+filename_coefs ./tools/QSVT-angles/inversion/test/poly_k_100_Nc_2085
+output_name    ./tools/QSVT-angles/inversion/test/angles_k100_eps3
+stopping_criterion 1e-12

@@ -5,6 +5,9 @@ __pycache__
 env
 KIN1D2D
 archive
+wiki/*
+
+scripts-py.sln
 
 *.png
 *.jpg
@@ -31,9 +34,9 @@ tools/QSVT-angles/inversion/estimated-angles/est_mi_k9*e4_*
 # tools/QSVT-angles/inversion/estimated-angles/est_mi_k1e7_*
 
 
-compute-QSP-angles/test-qsp/bin
-compute-QSP-angles/test-qsp/obj
+tools/compute-QSP-angles/test-qsp/bin
+tools/compute-QSP-angles/test-qsp/obj
 
-compute-QSP-angles/QSP/bin
-compute-QSP-angles/QSP/obj
+tools/compute-QSP-angles/QSP/bin
+tools/compute-QSP-angles/QSP/obj
 
