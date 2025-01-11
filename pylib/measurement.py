@@ -103,7 +103,12 @@ class MeasOracle__:
         return 
         
 
-    def open(self):
+    def open(self, id_prob_init = 0):
+        '''
+        id_prob_init: unsigned int
+        The parameter indicates probabilities for which initial conditions should be read.
+        '''
+
         fname = self.path_ + "/" + self.pname_ + "_OUTPUT.hdf5"
         self.dd_["fname"] = fname
 
@@ -167,11 +172,15 @@ class MeasOracle__:
                     self.output_zero_anc_states_[ii]["ampls"] = np.array(st["output-zero-anc-amplitudes-{:d}".format(ii)])
 
             # --- probabilities ---
-            line_group = "probabilities"
+            
+            line_group = "probabilities-{:d}".format(id_prob_init)
             if line_group in f:
+                print("Reading probabilities for the initial conditions {:d}.".format(id_prob_init))
                 pr = f[line_group]
                 self.probs_        = np.array(pr["probs"])
                 self.qubits_probs_ = np.array(pr["qubits"])
+            else:
+                print("Probabilities have been saved in these QuCF simulations.")
 
         if self.__flag_print_:
             print("Name of the simulation is", self.dd_["project-name"])
