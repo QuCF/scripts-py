@@ -3,18 +3,28 @@ import h5py
 import matplotlib.pyplot as plt
 import sys
 import cmath
+import scipy
 import cvxpy as cp
+import scipy.special
 import pylib.mix as mix
+import os
+import subprocess
 
 
 def reload():
     mix.reload_module(mix)
     return
 
-
+# **********************************************************************************************  
+# ********************************************************************************************** 
 class Ch_:
     # where to save the coefficients:
     path_root_ = None
+
+    # the name of the file where the coefficients will be saved
+    fname_ = None
+    fname_without_format_ = None
+    full_name_ = None
 
     # the chosen function:
     func_ch_ = None
@@ -186,6 +196,33 @@ class Ch_:
                 y[ix] += self.series_coefs_[i_coef] * np.cos(np.arcsin(x[ix]) * i_coef)
         return y
     
+    # - id_fun_ = 11 -
+    def vonMises1D(self, x):
+        kappa = self.par_ 
+
+        # f_cl = np.exp(kappa * np.cos(np.pi*np.arcsin(x))) / scipy.special.iv(0, kappa)
+        # f_cl = np.exp(kappa * np.cos(np.pi*x)) / scipy.special.iv(0, kappa)
+        f_cl = np.exp(kappa * x) / scipy.special.iv(0, kappa)
+
+        f_cl /= np.max(np.abs(f_cl))
+        return f_cl
+
+    # - id_fun_ = 12 -
+    def x_square(self, x):
+        f_cl = x**2
+        return f_cl
+    
+    # - id_fun_ = 13 -
+    def exp_x_square(self, x):
+        kappa = self.par_
+        f_loc = lambda x1: np.exp(kappa * x1**2) - 1.
+
+        f_cl = f_loc(x) / f_loc(1.0)
+        # f_cl /= np.max(np.abs(f_cl))
+        return f_cl
+
+
+    
     # --- Choose the function for which Chebyschev coefficients should be computed. ---
     def choose_func(
             self, id_func, par_in, 
@@ -248,7 +285,6 @@ class Ch_:
         if self.id_fun_ == 4:
             self.path_root_ ="./tools/QSVT-angles/LCHS-weights/coefs/"
             self.coef_norm_ = 1.0 - 1.e-2
-            # self.coef_norm_ = 0.98
             self.func_ch_ = self.func_LCHS_weights
             self.parity_ = 0
             self.line_f_ = "LCHS-weights"
@@ -274,6 +310,38 @@ class Ch_:
             self.line_f_ = name_prof
             self.line_par_ = "Nc{:d}".format(len(self.series_coefs_))
 
+
+        # --- von Mises 1D ---
+        if self.id_fun_ == 11: 
+            self.path_root_ = "./tools/QSVT-angles/vonMises1D/coefs/"
+            self.coef_norm_ = 1.0 - 1e-2
+            self.parity_  = 0
+            self.func_ch_ = self.vonMises1D
+            self.line_f_ = "vonMises1D"
+            self.line_par_ = "{:d}".format(int(self.par_))
+
+        
+        # --- x**2 ---
+        if self.id_fun_ == 12: 
+            self.path_root_ = "./tools/QSVT-angles/Stepanoff_Init/coefs/"
+            self.coef_norm_ = 1.0 - 1e-2
+            self.parity_  = 0
+            self.func_ch_ = self.x_square
+            self.line_f_ = "x_square"
+            self.line_par_ = "None"
+
+        
+        # --- exp(kappa * x**2) ---
+        if self.id_fun_ == 13: 
+            self.path_root_ = "./tools/QSVT-angles/Stepanoff_Init/coefs/"
+            self.coef_norm_ = 1.0 - 1e-2
+            self.parity_  = 0
+            self.func_ch_ = self.exp_x_square
+            self.line_f_ = "exp_x_squ"
+            self.line_par_ = "{:d}".format(int(self.par_))
+
+
+        # --- LCHS weights, option 2 ---
         if self.id_fun_ == 41:
             self.path_root_ ="./tools/QSVT-angles/LCHS-weights-2/coefs/"
             self.coef_norm_ = 1.0 - 1.e-4
@@ -306,23 +374,31 @@ class Ch_:
     
 
     # --- Compute the Chebyschev coefficients ---
-    def compute_Ch(self, Nd):
+    def compute_Ch(self, Nd, Nx = None):
         self.Nd_ = int(Nd)
         self.Nc_ = self.Nd_ // 2
 
-        if self.id_fun_ >= 0: 
-            self.Nx_ = int(self.Nd_*4)
-        if self.id_fun_ == -1:
-            self.Nx_ = len(self.y_ref_)
+        if Nx is None:
+            if self.id_fun_ >= 0: 
+                self.Nx_ = int(self.Nd_*4)
+            if self.id_fun_ == -1:
+                self.Nx_ = len(self.y_ref_)
+        else:
+            self.Nx_ = Nx
 
-        # x-grid: Chebyschev roots:
+        # - Choose x-grid -
         if self.x_ is None:
-            self.x_ = get_Cheb_roots(self.Nx_)    
+            self.x_ = get_Cheb_roots(self.Nx_)
+
+        # if self.id_fun_ == 11:
+        #     # self.x_ = np.cos(np.pi*self.x_)
+        #     self.x_ = np.cos(np.linspace(-np.pi/2., np.pi/2., self.Nx_))
 
         # - Evaluate the chosen function -
         if self.id_fun_ >= 0:
             self.y_ref_ = self.func_ch_(self.x_)
             
+        # - Renormalize the target function -
         self.y_ref_ *= self.coef_norm_
 
         print()
@@ -408,7 +484,9 @@ class Ch_:
         fig = plt.figure()
         ax = fig.add_subplot(111)
         ax.plot(self.x_, self.y_ref_, color="b", linewidth = 2, linestyle='-', label = "ref")
+        # ax.plot(np.linspace(-1, 1., self.Nx_), self.y_ref_, color="b", linewidth = 2, linestyle='-', label = "ref")
         ax.plot(self.x_, self.y_rec_,  color="r", linewidth = 2, linestyle=':', label = "reco")
+        # ax.plot(np.linspace(-1, 1., self.Nx_), self.y_rec_,  color="r", linewidth = 2, linestyle=':', label = "reco")
         plt.xlabel('x')
         plt.ylabel("y")
         # plt.xlim(-5, 5)
@@ -416,6 +494,9 @@ class Ch_:
         plt.grid(True)
         plt.show()
         return 
+    
+
+    # --- save 
 
 
     # --- Plot errors --- 
@@ -493,16 +574,17 @@ class Ch_:
 
         # --- Create the filename ---
         if fname_ch is None:
-            fname_ = "{:s}_{:s}_eps{:d}.hdf5".format(
+            self.fname_without_format_ = "{:s}_{:s}_eps{:d}".format(
                 self.line_f_, self.line_par_, -int(np.log10(self.max_abs_err_))
             )
         else:
-            fname_ = fname_ch + "_eps{:d}.hdf5".format(-int(np.log10(self.max_abs_err_)))
-        full_fname = self.path_root_ + "/" + fname_
+            self.fname_without_format_ = fname_ch + "_eps{:d}".format(-int(np.log10(self.max_abs_err_)))
+        self.fname_ = self.fname_without_format_ + ".hdf5"
+        self.full_fname_ = self.path_root_ + "/" + self.fname_
 
         # --- Store data ---
-        print("write coefficients to:\n " + full_fname)
-        with h5py.File(full_fname, "w") as f:
+        print("write coefficients to:\n " + self.full_fname_)
+        with h5py.File(self.full_fname_, "w") as f:
             grp = f.create_group("basic")
             grp.create_dataset('coef_norm',           data=float(self.coef_norm_))
             grp.create_dataset('date-of-simulation',  data=curr_time)
@@ -551,7 +633,80 @@ class Ch_:
 
 # **********************************************************************************************  
 # ********************************************************************************************** 
+class ComputeQSVT_angles_:
+    exe_cmd_ = None
+    format_files_ = None
+    format_calc_ = None
+    work_dir_coefs_ = None
+    work_dir_angles_ = None
+
+    filename_coef_without_format_ = None
+    filename_angles_without_format_ = None
+
+    # -----------------------------------------------------------------------------------
+    def __init__(
+            self, 
+            loc_dir_angles, 
+            filename_coef_without_format, 
+            filename_angles_without_format, 
+            root_dir = "./tools/QSVT-angles/",
+            exe_cmd = "../QuCF/build_angles/compute_angles"
+        ):
+        self.exe_cmd_ = exe_cmd
+        self.format_files_ = ".hdf5"
+        self.format_calc_ = ".ca"
+
+        self.work_dir_angles_ = os.path.join(root_dir, loc_dir_angles)
+        self.filename_coef_without_format_ = filename_coef_without_format
+        self.filename_angles_without_format_ = filename_angles_without_format
+
+        print("dir. where angles will be saved:\n{:s}".format(self.work_dir_angles_))
+        print("dir. with coefficients:\n{:s}".format(
+            os.path.join(self.work_dir_angles_, "coefs")
+        ))
+        print("name of the file with coefficients: {:s}".format(
+            self.filename_coef_without_format_ + self.format_files_
+        ))
+        print("name of the file where angles will be saved: {:s}".format(
+            self.filename_angles_without_format_ + self.format_files_
+        ))
+        return
     
+    # -----------------------------------------------------
+    def compute_QSVT_angles(self):
+        
+        # --- Create .ca file (input file for computing the angles) ---
+        text_ca = ""
+        text_ca += "filename_coefs {:s}".format(
+            os.path.join(self.work_dir_angles_, "coefs", self.filename_coef_without_format_)
+        ) + "\n"
+        text_ca += "output_name    {:s}".format(
+            os.path.join(self.work_dir_angles_, self.filename_angles_without_format_)
+        ) +"\n"
+        text_ca += "stopping_criterion 1e-12" + "\n"
+
+        filename_ca = "calc_{:s}".format(self.filename_coef_without_format_)
+        ffname_ca_wo_format = os.path.join(self.work_dir_angles_, filename_ca)
+        print("name of the .ca file used for angle computation: {:s}".format(
+            ffname_ca_wo_format + self.format_calc_
+        ))
+
+        with open(ffname_ca_wo_format + self.format_calc_, "w") as file:
+            file.write(text_ca)
+
+        # --- Computation ---
+        line_cmd = "{:s} {:s} ./".format(self.exe_cmd_, ffname_ca_wo_format)
+        res_proc = subprocess.run(
+            line_cmd, 
+            shell = True, 
+            executable="/bin/bash"
+        )
+        return
+
+# **********************************************************************************************  
+# ********************************************************************************************** 
+
+
 # -------------------------------------------------------------------------------
 def get_Cheb_roots(Nx_loc):
     x_roots = np.zeros(Nx_loc)

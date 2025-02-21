@@ -1,0 +1,3 @@
+filename_coefs ./tools/QSVT-angles/vonMises1D/coefs/x_square_None_eps15
+output_name    ./tools/QSVT-angles/vonMises1D/angles_x_square_parNone_eps16
+stopping_criterion 1e-12

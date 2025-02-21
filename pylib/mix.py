@@ -4,7 +4,7 @@ import h5py
 # import pylib.Global_variables as GLO
 import sys
 from scipy.optimize import fsolve
-from numba import jit, njit
+# from numba import jit, njit
 from termcolor import colored
 import matplotlib.pyplot as plt
 
@@ -175,7 +175,7 @@ def hermitian_to_Z_pauli(H, flag_filter = True, small_coef = 1e-14, flag_print_d
     # -> H - Hermitian matrix of size N = 2**nq
     # -> flag_filter - if True, exclude Pauli products with 
     #                   coefficients smaller than small_coef
-    # -> flag_print_details to print soma intermediate details of the decomposition 
+    # -> flag_print_details to print some intermediate details of the decomposition 
 
     # Output:
     # H_decom =[(...), (...), ] - all Pauli products of the decomposition
@@ -711,7 +711,7 @@ def print_array(
     for ii, a1 in enumerate(A):
         ff_res = ff_line
         if flag_remove_zeros and np.abs(a1) < coef_remove_zeros: 
-            a1 = np.complex(0,0)
+            a1 = complex(0,0)
             ff_res = "{:" + str(ff[0]) + "." + str(ff[1]) + "f}"
         if np.mod(ii,n_in_row) == 0 and ii > 0:
             str_out +="\n"
@@ -1173,7 +1173,7 @@ def action_of_RyRc_gates(groups, init_vector=zero_state_vector()):
 
 
 # ------------------------------------------------------------------------------------------
-@jit(nopython=True)
+# @jit(nopython=True)
 def compare_complex_values(a1, a2, prec = G_zero_err):
     flag_same = False
     if np.abs(a1.real - a2.real) <= prec:
@@ -1289,7 +1289,7 @@ def find_correcting_angles_for_Rc_MMATH(required_value, init_vec, prec = G_zero_
 
     
 # ------------------------------------------------------------------------------------------
-@jit(nopython=True)
+# @jit(nopython=True)
 def compare_matrices_dense(B, A, prec = 1e-6, flag_return_err = False):
     N = A.shape[0]
     if N != B.shape[0]:
@@ -1344,7 +1344,7 @@ def print_matrix_max_min_dense(A):
 
 # ------------------------------------------------------------------------------------------
 # compute the number of nonzero values in the matrix:
-@jit(nopython=True)
+# @jit(nopython=True)
 def compute_Nz(D, prec = 1e-12):
     N_nz = 0
     N = D.shape[0]
@@ -1609,6 +1609,10 @@ class SparseMatrix:
             for i_nz in range(self._rows_[ir], self._rows_[ir+1]):
                 A_dense[ir, self._columns_[i_nz]] = self._values_[i_nz]
         return A_dense
+    
+    # ------------------------------------------------------------------------------------------
+    def dense(self):
+        return self.form_dense_matrix()
 
 
     # ------------------------------------------------------------------------------------------
@@ -1721,7 +1725,7 @@ def plot_structure_simple(
 
 
 # ------------------------------------------------------------------------------------------
-@jit(nopython=True)
+# @jit(nopython=True)
 def compare_matrices_sparse(
     Na, arows, acolumns, avalues, 
         brows, bcolumns, bvalues, 
@@ -1752,7 +1756,7 @@ def form_sparse_matrix(A, prec = 1e-12):
 
 
 # ------------------------------------------------------------------------------------------
-@jit(nopython=True)
+# @jit(nopython=True)
 def form_sparse_matrix_CORE(A, N, D_rows, D_columns, D_values, prec):
     counter_v = -1
     for ir in range(N):
@@ -1915,7 +1919,7 @@ def sqrt_sum(x):
 
 # ------------------------------------------------------------------------------------------
 # --- res = (A - B) ---
-@jit(nopython=True)
+# @jit(nopython=True)
 def find_diff(A, B, res, prec = 1e-6):
     N = A.shape[0]
     if N != B.shape[0]:
@@ -1950,7 +1954,7 @@ def get_order_base10(v):
 
 # ------------------------------------------------------------------------------------------
 def compute_wigner(psi, x_grid, p_grid, Nxi, xi_max, hbar = 1):
-        @njit(parallel=True)
+        # @njit(parallel=True)
         def wigner_function(id_x):
             # --- Compute the Wigner function for the wavefunction psi ---
             Np = len(p_grid)
@@ -2009,3 +2013,6 @@ def plot_Wigner(x, p, W, fontsize = 16, str_for_title = None):
         line_title += ": {:s}".format(str_for_title)
     ax.set_title(line_title, fontsize = fontsize)
     return
+
+
+

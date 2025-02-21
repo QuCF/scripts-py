@@ -270,10 +270,13 @@ class Circuit:
         # -> sel_error_order - order of the Trotterization error (defines QC construction)
         # REMARK: id_pauli: 0 - I, 1 - X, 2 - Y, 3 - Z.
 
+        # -----------------------------------------------------------------
         def copy_qu(id_qubit, ilq, id_pauli):
             if id_qubit != ilq and id_pauli != 0:
                 self.add_cnot(id_qubit, ilq)
 
+        # -----------------------------------------------------------------
+        # --- from X, Y to Z ---
         def change_basis(ids_prod, ilq, flag_back):
             for id_qubit, id_pauli in enumerate(ids_prod):
                 if flag_back:
@@ -292,6 +295,7 @@ class Circuit:
                         self.add_H(id_qubit)
                         self.add_S(id_qubit)
 
+        # -----------------------------------------------------------------
         def copy_one_dir(ids_prod, ilq, flag_back = False):
             if not flag_back:
                 change_basis(ids_prod, ilq, flag_back)
@@ -303,6 +307,7 @@ class Circuit:
                     copy_qu(id_qubit, ilq, id_pauli)
                 change_basis(ids_prod, ilq, flag_back)
 
+        # -----------------------------------------------------------------
         def add_one_prod(dd, ilq_init, coef_theta):
             # indices of Pauli matrices present in the considered tensor product
             ids_prod_init = dd[2]
@@ -329,7 +334,7 @@ class Circuit:
             ids_prod_rev = list(ids_prod_local)
             ids_prod_rev.reverse()
             copy_one_dir(ids_prod_rev, ilq_local, flag_back = True)
-
+        # -----------------------------------------------------------------
         # number of products:
         Nprod = len(H_decomp)
 
