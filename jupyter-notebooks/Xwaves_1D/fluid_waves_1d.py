@@ -1169,7 +1169,7 @@ def compute_Q_outgoing_DD(coef_coupling, vars_data, dd):
 
     ids_Q = vars_data['ids-Q']
 
-    # REMARK: there are not ghost numbers in the x-grid
+    # REMARK: there are not ghost points in the x-grid
     def one_time_step(
         tau, h, t,  
         vx_prev, vy_prev, Ex_prev, Ey_prev, Bz_prev, Q_prev,
