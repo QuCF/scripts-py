@@ -253,7 +253,11 @@ def solve_carleman_orig(x_init, N_nl_emb, N_nl_sys, t, F_terms):
 
 # -----------------------------------------------------------------------------------------------
 # --- Globalised Carleman embedding of a nonlinear system with Nx variables ---
-def solve_carleman_global(x_init_cond, N_nl_emb, N_nl_sys, t, F_terms, return_sys_f, sys_coefs, zeta_th = 0.6):
+def solve_carleman_global(
+        x_init_cond, N_nl_emb, N_nl_sys, t, 
+        sys_coefs, return_sys, shift_coefs, 
+        zeta_th = 0.6
+    ):
     # --------------------------------------------------------------
     # * x_init_cond: initial conditions;
     # * N_nl_emb: the number of NL terms used for Carleman embedding;
@@ -340,15 +344,9 @@ def solve_carleman_global(x_init_cond, N_nl_emb, N_nl_sys, t, F_terms, return_sy
             term_sum += temp_prod
         return term_sum
     # --------------------------------------------------------------
-    def shift_coefs_f_(ss, zeta):
-        ss_new = {}
-        for key, value in ss.items():
-            ss_new[key] = value - zeta
-        return ss_new
-    # --------------------------------------------------------------
     def shift_x(xs, zeta):
         for ix in range(Nx):
-            xs[ix] = xs[ix] + zeta[ix]
+            xs[ix] = xs[ix] - zeta[ix]
         return xs
     # --------------------------------------------------------------
     def get_radius(xs):
@@ -356,14 +354,15 @@ def solve_carleman_global(x_init_cond, N_nl_emb, N_nl_sys, t, F_terms, return_sy
         r = np.sqrt(sum_of_squares)
         return r
     # --------------------------------------------------------------
-    def form_zeta_signed(xs, zeta_gl):
-        zeta_sign = np.zeros(Nx)
-        for ii in range(Nx):
-            sign_loc = xs[ii] / np.abs(xs[ii])
-            zeta_sign[ii] = sign_loc*zeta_th
-        return zeta_sign
+    # def form_zeta_signed(xs):
+    #     zeta_sign = np.zeros(Nx)
+    #     for ii in range(Nx):
+    #         sign_loc = xs[ii] / np.abs(xs[ii])
+    #         zeta_sign[ii] = sign_loc*zeta_th
+    #     return zeta_sign
     
     # --- the number of variables ---
+    F_terms = return_sys(sys_coefs)
     Nx = np.shape(F_terms[0])[0]
 
     # --- time parameters ---
@@ -395,41 +394,44 @@ def solve_carleman_global(x_init_cond, N_nl_emb, N_nl_sys, t, F_terms, return_sy
     while t_global < t[-1]:
         # --- Form the system: d_t u = A u + B ---
         A_chart, B_chart = prepare_matrices_AB(
-            return_sys_f(shift_coefs_f_(sys_coefs, zeta_gl)) # !!! change the system of equations according to the current chart
+            return_sys(shift_coefs(sys_coefs, zeta_gl)) 
         )
         xs_init_sys = prepare_init(x_init_curr)
 
         # --- Runge-Kutta solver ---
         oo = RK45(f_to_RK, t_global, xs_init_sys, t[-1], first_step=dt, max_step=dt)
         # sol_carleman[Nt_act - 1,:] = xs_init_sys[:N_terms[0]]
-        sol_carleman[Nt_act - 1,:] = shift_x(xs_init_sys[0], zeta_gl)  
+        sol_carleman[Nt_act - 1,:] = shift_x(xs_init_sys[:N_terms[0]], zeta_gl)  
         while mix.compare_two_strings(oo.status, "running"):
             oo.step()
             Nt_act += 1
             if (Nt_act - 1) >= len(t_res):
-                print()
-                print("WARNING: increase arrays: counter_t = {:d}".format(Nt_act - 1))
+                print("\nWARNING: increase arrays: counter_t = {:d}".format(Nt_act - 1))
                 t_res = np.pad(t_res, (0, Nt), 'constant')
                 sol_carleman = np.pad(sol_carleman, ((0, Nt), (0, 0)), mode='constant')
-                print()
+
 
             t_res[Nt_act - 1] = oo.t
             t_global          = t_res[Nt_act - 1]
 
             x_loc = np.array(oo.y[:N_terms[0]])
-            if get_radius(x_loc) >= zeta_th:
+            rr = get_radius(x_loc)
+            if rr >= zeta_th:
 
                 # --- set the current location as a near-center of a new chart ---
-                zeta_curr = form_zeta_signed(x_loc)
-                zeta_gl += zeta_curr
-                x_init_curr = shift_x(x_loc, -zeta_curr) # should be current x, not zeta_curr
+                # zeta_curr = form_zeta_signed(x_loc)
+                # zeta_gl += zeta_curr
+                # x_init_curr = shift_x(x_loc, -zeta_curr) # should be current x, not zeta_curr
 
-                print("\n--- Shift to another chart, t = {:0.3f} ---".format(t_global))
+                zeta_gl    += x_loc
+                x_init_curr = np.zeros(Nx)
+
+                print("--- Shift to another chart, t = {:0.3f} ---".format(t_global))
+                print("radius: {:0.1f}".format(rr))
                 print("zeta_gl: ", end="")
-                mix.print_matrix(zeta_gl, ff = [6,2,"f"])
+                mix.print_array(zeta_gl, ff = [6,2,"f"])
                 print("xs: ", end="")
-                mix.print_matrix(x_loc, ff = [14, 3, "e"])
-
+                mix.print_array(x_loc, ff = [14, 3, "e"])
                 break
             else:
                 # sol_carleman[Nt_act - 1,:] = oo.y[:N_terms[0]]
