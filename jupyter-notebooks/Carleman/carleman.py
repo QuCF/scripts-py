@@ -62,20 +62,39 @@ def solve_standart(init_cond, t, F):
 def analyse_classical(init_cond, t, F):
     # --- Solve the system ---
     sol_ref, t_ref = solve_standart(init_cond, t, F)
+
+    Nvar = np.shape(sol_ref)[1]
+    flag_3d = False
+    if Nvar == 3:
+        flag_3d = True
+
     x = sol_ref[:,0]
     y = sol_ref[:,1]
+
+    z = None
+    if flag_3d:
+        z = sol_ref[:,2]
 
     # --- Plotting trajectories ---
     plt.close()
     fig = plt.figure()
-    ax = fig.add_subplot(111)
-    ax.plot(
-        x, y, 
-        "b", linewidth = 1, linestyle='-', 
-    )
-    plt.xlabel('$x$')
-    plt.ylabel("$y$")
-    # plt.legend()
+    if not flag_3d:
+        ax = fig.add_subplot(111)
+        ax.plot(
+            x, y, 
+            "b", linewidth = 1, linestyle='-', 
+        )
+    else:
+        ax = fig.add_subplot(111, projection='3d')
+        ax.plot(
+            x, y, z,
+            "b", linewidth = 1, linestyle='-', 
+        )
+    
+    ax.set_xlabel('$x$')
+    ax.set_ylabel("$y$")
+    if flag_3d:
+        ax.set_zlabel("$z$")
     plt.grid(True)
     plt.show()
 
@@ -90,8 +109,16 @@ def analyse_classical(init_cond, t, F):
         t_ref, y, 
         "r", linewidth = 1, linestyle='-', label = "y", 
     )
+    if flag_3d:
+        ax.plot(
+            t_ref, z, 
+            "g", linewidth = 1, linestyle='-', label = "z", 
+        )
     plt.xlabel('$t$')
-    plt.ylabel("$x,y$")
+    if not flag_3d:
+        plt.ylabel("$x,y$")
+    else:
+        plt.ylabel("$x,y,z$")
     plt.legend()
     plt.grid(True)
     plt.show()
@@ -248,7 +275,7 @@ def solve_carleman_orig(x_init, N_nl_emb, N_nl_sys, t, F_terms):
     # --- remove empty cells from the resulting lists ---    
     t_res = t_res[:Nt_act]
     sol_carleman = sol_carleman[:Nt_act,:]
-    return sol_carleman, t_res
+    return sol_carleman, t_res, "STD"
 
 
 # -----------------------------------------------------------------------------------------------
@@ -345,9 +372,10 @@ def solve_carleman_global(
         return term_sum
     # --------------------------------------------------------------
     def shift_x(xs, zeta):
+        xs_new = np.array(xs)
         for ix in range(Nx):
-            xs[ix] = xs[ix] - zeta[ix]
-        return xs
+            xs_new[ix] = xs_new[ix] + zeta[ix]
+        return xs_new
     # --------------------------------------------------------------
     def get_radius(xs):
         sum_of_squares = np.sum(np.square(xs))
@@ -399,8 +427,8 @@ def solve_carleman_global(
         xs_init_sys = prepare_init(x_init_curr)
 
         # --- Runge-Kutta solver ---
-        oo = RK45(f_to_RK, t_global, xs_init_sys, t[-1], first_step=dt, max_step=dt)
-        # sol_carleman[Nt_act - 1,:] = xs_init_sys[:N_terms[0]]
+        # oo = RK45(f_to_RK, t_global, xs_init_sys, t[-1], first_step=dt, max_step=dt)
+        oo = RK45(f_to_RK, t_global, xs_init_sys, t[-1], max_step=dt)
         sol_carleman[Nt_act - 1,:] = shift_x(xs_init_sys[:N_terms[0]], zeta_gl)  
         while mix.compare_two_strings(oo.status, "running"):
             oo.step()
@@ -419,10 +447,6 @@ def solve_carleman_global(
             if rr >= zeta_th:
 
                 # --- set the current location as a near-center of a new chart ---
-                # zeta_curr = form_zeta_signed(x_loc)
-                # zeta_gl += zeta_curr
-                # x_init_curr = shift_x(x_loc, -zeta_curr) # should be current x, not zeta_curr
-
                 zeta_gl    += x_loc
                 x_init_curr = np.zeros(Nx)
 
@@ -434,21 +458,25 @@ def solve_carleman_global(
                 mix.print_array(x_loc, ff = [14, 3, "e"])
                 break
             else:
-                # sol_carleman[Nt_act - 1,:] = oo.y[:N_terms[0]]
                 sol_carleman[Nt_act - 1,:] = shift_x(x_loc, zeta_gl)
 
         # --- remove empty cells from the resulting lists ---    
         t_res = t_res[:Nt_act]
         sol_carleman = sol_carleman[:Nt_act,:]
     print("Done")
-    return sol_carleman, t_res
+    return sol_carleman, t_res, "GL"
 
 
 # -----------------------------------------------------------------------------------------------
 # --- Compare classical with Carleman simulations  ---
-def compare_trajectory_cl_and_carleman(t_ref, sol_ref, t_emb, sol_emb, fontsize = 20, fig_size = (10,9)):
+def compare_trajectory_cl_and_carleman(
+        t_ref, sol_ref, t_emb, sol_emb, 
+        flag_save = False, path_save = None, case_title = None, case_emb = None,
+        fontsize = 20, fig_size = (10,9)
+    ):
     colors_loc     = ["orange", "red", "green", "gray", "black"]
     linestyles_loc = ["-", "--", "--", ":"]
+    name_vars      = ["x", "y", "z"]
     fontsize_leg = int(fontsize/4. * 3.)
 
     Nvar = np.shape(sol_ref)[1]
@@ -472,12 +500,34 @@ def compare_trajectory_cl_and_carleman(t_ref, sol_ref, t_emb, sol_emb, fontsize 
         ax_loc = axs[0]
         ax_loc.plot(s_ref[0], s_ref[1], color="b", linewidth = 2, linestyle='-', label = "CL")
         ax_loc.plot(s_emb[0], s_emb[1], color="r", linewidth = 2, linestyle="--", label = "CA")
+
+        # --- Save data ---
+        if flag_save:
+            mix.save_dat_plot_1d_file(
+                path_save + "/REF_{:s}_x.dat".format(case_title), 
+                s_ref[0], s_ref[1]
+            )
+            mix.save_dat_plot_1d_file(
+                path_save + "/EMB_{:s}_{:s}_x.dat".format(case_title, case_emb), 
+                s_emb[0], s_emb[1]
+            )
     else:
         fig = plt.figure(figsize=fig_size)
         ax_loc = fig.add_subplot(111, projection='3d')
         ax_loc.plot(s_ref[0], s_ref[1], s_ref[2], color="b", linewidth = 2, linestyle='-', label = "CL")
         ax_loc.plot(s_emb[0], s_emb[1], s_emb[2], color="r", linewidth = 2, linestyle="--", label = "CA")
         ax_loc.set_zlabel("$z$", fontsize = fontsize) 
+
+        # --- Save data ---
+        if flag_save:
+            mix.save_dat_plot_3d_trajectory_file(
+                path_save + "/REF_{:s}_x.dat".format(case_title), 
+                s_ref[0], s_ref[1], s_ref[2]
+            )
+            mix.save_dat_plot_3d_trajectory_file(
+                path_save + "/EMB_{:s}_{:s}_x.dat".format(case_title, case_emb), 
+                s_emb[0], s_emb[1], s_emb[2]
+            )
     ax_loc.set_xlabel("$x$", fontsize = fontsize)
     ax_loc.set_ylabel("$y$", fontsize = fontsize)       
     offset_text = ax_loc.yaxis.get_offset_text()
@@ -515,6 +565,13 @@ def compare_trajectory_cl_and_carleman(t_ref, sol_ref, t_emb, sol_emb, fontsize 
             t_ref, abs(s_ref[ivar] - s_emb_int[ivar]), 
             color=colors_loc[ivar], linewidth = 2, linestyle='-'
         )
+
+        # --- Save data ---
+        if flag_save:
+            mix.save_dat_plot_1d_file(
+                path_save + "/EMB_{:s}_{:s}_err_{:s}.dat".format(case_title, case_emb, name_vars[ivar]), 
+                t_ref, abs(s_ref[ivar] - s_emb_int[ivar])
+            )
     ax_loc.set_xlabel('$t$', fontsize = fontsize)
     ax_loc.set_ylabel("$|CL - CA|$", fontsize = fontsize)
     offset_text = ax_loc.yaxis.get_offset_text()
