@@ -542,13 +542,14 @@ def compare_trajectory_cl_and_carleman(
     if flag_3d:
         fig, axs = plt.subplots(2, 1, figsize=fig_size)
         ax_loc = axs[0]
+        ax_loc.set_ylabel("$|x|,|y|,|z|$", fontsize = fontsize)
     else:
         ax_loc = axs[1]
+        ax_loc.set_ylabel("$|x|,|y|$", fontsize = fontsize)
 
-    for ivar in range(ivar):
+    for ivar in range(Nvar):
         ax_loc.semilogy(t_ref, np.abs(s_ref[ivar]), color="black",          linewidth = 2, linestyle='-', label = "CL" if ivar == 0 else None)
         ax_loc.semilogy(t_emb, np.abs(s_emb[ivar]), color=colors_loc[ivar], linewidth = 2, linestyle='--', label = "CA: {:s}".format(label_lines[ivar]))
-    ax_loc.set_ylabel("$|x|,|y|,|z|$", fontsize = fontsize)
     offset_text = ax_loc.yaxis.get_offset_text()
     offset_text.set_fontsize(fontsize) 
 
