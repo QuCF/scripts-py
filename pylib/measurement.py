@@ -58,10 +58,10 @@ def get_str_state(q, format_q):
 
 def get_complex(ampls):
     N = len(ampls)
-    ampls_complex = np.zeros(N, dtype=np.complex)
+    ampls_complex = np.zeros(N, dtype=complex)
     for i_state in range(N):
         one_ampl = ampls[i_state]
-        ampls_complex[i_state] = np.complex(one_ampl["real"], one_ampl["imag"])
+        ampls_complex[i_state] = complex(one_ampl["real"], one_ampl["imag"])
     return ampls_complex
 
 
@@ -339,7 +339,7 @@ class MeasOracle__:
     def get_var_x(self, vars_enc, reg_x):
         nx = self.dd_["regs"][reg_x]
         Nx = 2**nx
-        ampls = np.zeros(Nx, dtype=np.complex)
+        ampls = np.zeros(Nx, dtype=complex)
 
         # prepare a dictionary that defines a set of states to be considered:
         var_to_cons = {}
@@ -360,7 +360,7 @@ class MeasOracle__:
         for i_state in range(nstates):
             int_x = self.convert_reg_state_to_int(reg_x, states_to_search[i_state])
             one_ampl     = ampls_to_search[i_state]
-            ampls[int_x] = np.complex(one_ampl["real"], one_ampl["imag"])
+            ampls[int_x] = complex(one_ampl["real"], one_ampl["imag"])
         return ampls
 
 
