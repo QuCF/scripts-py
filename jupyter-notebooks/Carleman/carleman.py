@@ -663,15 +663,27 @@ def solve_carleman_global_adaptive(
             t_non_shifted, xs_non_shifted, 
             zeta_non_shifted, zeta_shifted,
             zeta_gl_non_shifted, zeta_gl_shifted,
-            is_shifted_reduced # Whether the shifted chart is the reduced chart?
+            is_shifted_reduced, # Whether the shifted chart is the reduced chart?
+            t_array = None, sol_non_shifted = None
         ):
         # --- Compare non-shifted and shifted charts ---
         # > The non-shifted chart has a bigger radius, i.e. zeta_non_shifted;
         # > The non-shifted chart starts from a nonzero local coordinate, i.e. xs_non_shifted[-1];
         # > The non-shifted chart is supposed to be more unstable;
         # --------------------------------------------------------------
-        sol_non_shifted = np.zeros((Nt_, Nx_))
-        t_array = np.zeros(Nt_)
+        if t_array is None:
+            # --- The smaller chart was shifted only once ---
+            sol_non_shifted = np.zeros((Nt_, Nx_))
+            t_array         = np.zeros(Nt_)
+            counter_t = -1
+            x_non_shifted_next = np.array(xs_non_shifted[-1])
+            t_curr = t_non_shifted[-1]
+        else:
+            # --- The smaller chart was shifted twice or more times ---
+            counter_t = len(t_array) - 1
+            x_non_shifted_next = np.array(sol_non_shifted[-1])
+            t_curr  = t_array[-1]
+        x_shifted_next     = np.zeros(Nx_)
         
         A_non_shifted, B_non_shifted = prepare_matrices_AB( 
             return_sys_(shift_coefs_(sys_coefs_, zeta_gl_non_shifted)) 
@@ -681,16 +693,12 @@ def solve_carleman_global_adaptive(
         )
 
         t_next = -1
-        t_curr  = t_non_shifted[-1]
-
-        x_non_shifted_next = np.array(xs_non_shifted[-1])
-        x_shifted_next     = np.zeros(Nx_)
-
-        counter_t = -1
         flag_take_ref = True if is_shifted_reduced else False
+        flag_last_time_step = False
         while t_next < t_max_:
             dt_curr = dt_
             if (t_curr + dt_curr) >= t_max_:
+                flag_last_time_step = True
                 dt_curr = (t_max_ - t_curr)
             t_next = t_curr + dt_curr
 
@@ -718,6 +726,7 @@ def solve_carleman_global_adaptive(
             x_non_shifted_next = x_non_shifted_next_EMB[:Nx_]
             x_shifted_next     = x_shifted_next_EMB[:Nx_]
 
+            # --- Are there unstable Carleman components? ---
             N_unstable = len(x_non_shifted_next_EMB[np.abs(x_non_shifted_next_EMB) > 1])
             flag_unstable = False
             if N_unstable > 0:
@@ -733,14 +742,14 @@ def solve_carleman_global_adaptive(
                 if abs_err >= err_tolerance_ or flag_unstable:
                     return t_non_shifted, xs_non_shifted, False # reduce the chart
                 else:
-                    # --- save the results computed in the non-shifted chart ---
                     if (counter_t + 1) >= len(t_array):
                         t_array         = np.pad(t_array, (0, Nt_), 'constant')
                         sol_non_shifted = np.pad(sol_non_shifted, ((0, Nt_), (0, 0)), mode='constant')
 
                     if get_radius(x_non_shifted_next) >= zeta_non_shifted:
-                        break # the reduced chart is not required  
+                        break # the reference chart is taken  
                     else:
+                        # --- Save the results computed in the non-shifted chart ---
                         counter_t += 1
                         t_array[counter_t]           = t_next
                         sol_non_shifted[counter_t,:] = x_non_shifted_next 
@@ -759,11 +768,28 @@ def solve_carleman_global_adaptive(
                     if get_radius(x_non_shifted_next) >= zeta_non_shifted:
                         break # the enlarged chart is taken  
                     else:
+                        # --- save the results computed in the non-shifted chart ---
                         counter_t += 1
                         t_array[counter_t]           = t_next
                         sol_non_shifted[counter_t,:] = x_non_shifted_next
-            t_curr = t_next
 
+            # --- Is the trajectory outside the shifted (smaller) chart? ---
+            # --- If yes, shift the shifted chart again ---
+            if get_radius(x_shifted_next) >= zeta_shifted and not flag_last_time_step: 
+                t_array         = t_array[:counter_t+1]
+                sol_non_shifted = sol_non_shifted[:counter_t+1,:]
+                return compare_two_charts(
+                    t_non_shifted, xs_non_shifted, 
+                    zeta_non_shifted, zeta_shifted,
+                    zeta_gl_non_shifted, 
+                    zeta_gl_shifted + x_shifted_next,
+                    is_shifted_reduced,
+                    t_array         = t_array, 
+                    sol_non_shifted = sol_non_shifted,
+                )
+            
+            # --- consider the next time step ---
+            t_curr = t_next
         t_array         = t_array[:counter_t+1]
         sol_non_shifted = sol_non_shifted[:counter_t+1,:]
         return t_array, sol_non_shifted, flag_take_ref
@@ -797,31 +823,19 @@ def solve_carleman_global_adaptive(
                     break  # take the reference chart
                 else:
                     print("Take a smaller chart: new zeta = {:0.3e}".format(zeta_comp))
+
                     # --- consider an even smaller chart ---
                     zeta_ref  = zeta_comp
                     zeta_comp = change_radius(zeta_ref, flag_reduce=True)
 
-                    # --- find the trajectory within the next reduced chart ---
-                    # --- REMARK: does not always work:                                 ---
-                    # ---       the condition abs_values < get_radius(zeta_comp) ---
-                    # ---       does not always reduce the chart !!!             ---
-                    # N_points_in_time = len(t_array_reduc_chart)
-                    # abs_values = np.zeros(N_points_in_time)
-                    # for ii in range(N_points_in_time):
-                    #     abs_values[ii] = get_radius(xs_reduc_chart[ii])
-                    # mask = abs_values < get_radius(zeta_comp)
-                    # t_array_reduc_chart = t_array_reduc_chart[mask] 
-                    # xs_reduc_chart      = xs_reduc_chart[mask]
-
+                    # --- compute the trajectory in the smaller chart ---
                     t_array_reduc_chart, xs_reduc_chart = solve_within_a_single_chart(zeta_comp, zeta_gl_curr, t_init)
                     zeta_gl_red = zeta_gl_curr + xs_reduc_chart[-1]
                     flag_consider_enlarged = False  # the chart has been reduced once, no need to consider an enlarged chart
-
             if zeta_comp <= zeta_min_:
                 print("\nWarning: the minimal chart radius was achieved, zeta_comp, zeta_min: {:0.3e}, {:0.3e}.\n".format(
                     zeta_comp, zeta_min_
                 ))
-
             xs_res  = np.concatenate((xs_res,  xs_reduc_chart,      xs_res_from_comp), axis = 0)
             t_array = np.concatenate((t_array, t_array_reduc_chart, t_array_comp))
         else:
@@ -862,6 +876,10 @@ def solve_carleman_global_adaptive(
     # if zeta_init_ > zeta_max_:
     #     print("Error: zeta_init_ must be <= zeta_max_")
     #     return None, None, None, None
+    if zeta_step_ >= zeta_init_ or zeta_step_ >= zeta_max_:
+        print("Error: zeta_step_ must be < zeta_init_ and zeta_max_")
+        return None, None, None, None
+
     
     # --- the number of variables ---
     Nx_ = len(x_init_cond_)
