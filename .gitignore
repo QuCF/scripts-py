@@ -7,6 +7,8 @@ KIN1D2D
 archive
 wiki/*
 
+jupyter-notebooks/burgers
+
 scripts-py.sln
 
 *.png
