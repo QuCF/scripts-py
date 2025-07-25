@@ -1,0 +1,3 @@
+filename_coefs ./tools/QSVT-angles/Stepanoff_Init/coefs/exp_x_squ_1_eps15
+output_name    ./tools/QSVT-angles/Stepanoff_Init/angles_exp_x_squ_par1_eps15
+stopping_criterion 1e-12

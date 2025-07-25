@@ -26,7 +26,7 @@ def reload():
 # ----------------------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------------------
 def f_init_1d(kappa, x):
-    f_loc = lambda x1: np.exp(kappa * np.sin(x1/2.)**2) - 1
+    f_loc = lambda x1: np.exp(kappa * np.sin(x1/2.)**2) - 1.
     y = f_loc(x) / f_loc(np.pi)
     return y
 
@@ -108,7 +108,8 @@ def change_coord_to_orig(psi, Nx):
 def computation_in_real_and_fourier(
         dt, Nt, x,
         diag_U_M1, diag_U_M2, init_2d,
-        flag_plot = False
+        flag_plot = False,
+        flag_norm_max = True
     ):
     # ----------------------------------------------------------
     def evolution_one_matrix(psi_init_x, id_axis):
@@ -140,7 +141,8 @@ def computation_in_real_and_fourier(
     # --- Return to the original coordinates ---
     y_mod = np.array(psi_t_x.real.transpose()) # the result in modified coordinates
     y_orig = change_coord_to_orig(psi_t_x, Nx)
-    y_orig /= np.max(np.abs(y_orig)) # the normalized result in the original coordinates
+    if flag_norm_max:
+        y_orig /= np.max(np.abs(y_orig)) # the normalized result in the original coordinates
 
     # --- Plotting ---
     if flag_plot:
@@ -200,7 +202,8 @@ def get_Dopri_classical_simulations(
         dt, Nt, x,
         alpha, kappa,
         path_save,
-        prefix = "", flag_plot = True
+        prefix = "", flag_plot = True,
+        flag_norm_max = True
     ):
     Nx = len(x)
     nx = int(np.log2(Nx))
@@ -224,7 +227,8 @@ def get_Dopri_classical_simulations(
     y_cl_dopri_1d = y_cl_dopri_arr[pos_arr]
 
     # --- Normalize to 1 ---
-    y_cl_dopri_1d /= np.max(np.abs(y_cl_dopri_1d))
+    if flag_norm_max:
+        y_cl_dopri_1d /= np.max(np.abs(y_cl_dopri_1d))
 
     # --- from 1D to 2D ---
     y_cl_dopri_2d = np.reshape(y_cl_dopri_1d, (Nx, Nx)) 
