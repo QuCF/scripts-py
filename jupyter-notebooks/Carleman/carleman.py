@@ -291,10 +291,9 @@ def solve_carleman_orig(x_init, N_nl_emb, N_nl_sys, t, F_terms):
 # --- Fixed piecewise non-adaptive Carleman embedding of a nonlinear system with Nx variables ---
 # -----------------------------------------------------------------------------------------------
 def solve_carleman_global_fixed(
-        x_init_cond, N_nl_emb, N_nl_sys, t, 
+        X_init_cond, N_nl_emb, N_nl_sys, t, 
         sys_coefs, return_sys, shift_coefs, 
-        zeta_th = 0.1,
-        flag_before_boundary = True
+        X_GC, Zeta_grid
     ):
     # --------------------------------------------------------------
     # * x_init_cond: initial conditions;
@@ -388,11 +387,6 @@ def solve_carleman_global_fixed(
             xs_new[ix] = xs_new[ix] + zeta[ix]
         return xs_new
     # --------------------------------------------------------------
-    def get_radius(xs):
-        sum_of_squares = np.sum(np.square(xs))
-        r = np.sqrt(sum_of_squares)
-        return r
-    # --------------------------------------------------------------
     
     # --- the number of variables ---
     F_terms = return_sys(sys_coefs)
@@ -419,83 +413,72 @@ def solve_carleman_global_fixed(
     t_res        = np.zeros(Nt)
     sol_carleman = np.zeros((Nt, N_terms[0]))
 
+    # --- Find the tile where the initial conditions are placed ---
+    L_grid  = np.zeros(Nx, dtype=np.integer)
+    Zeta_gl = np.zeros(Nx)
+    x_loc   = np.zeros(Nx)
+    for ii in range(Nx):
+        d_zeta = 2.*Zeta_grid[ii]
+        L_grid[ii]  = int( (X_init_cond[ii] - X_GC[ii]) / d_zeta )
+        Zeta_gl[ii] = X_GC[ii] + L_grid[ii] * d_zeta   # the center of the tile where the initial conditions are;
+        x_loc[ii]   = X_init_cond[ii] - Zeta_gl[ii]    # the local coordinates of the initial conditions
+    
     # --- Carleman computation in different charts ---
-    if flag_before_boundary:
-        # Save states only before the horizon was hit: a slower version, higher precision.
-        # Potenially, can stuck in an infinite loop if xi is too small 
-        # (to avoid this, counter_beyond is used).
-        zeta_gl  = np.array(x_init_cond) 
-        t_global = 0.
-        x_prev   = np.zeros(len(x_init_cond)) 
-        Nt_act   = 0
-        t_res[Nt_act]          = t_global
-        sol_carleman[Nt_act,:] = np.array(x_init_cond) 
-        counter_beyond = 0
-        while t_global < t[-1]:
-            A_chart, B_chart = prepare_matrices_AB(
-                return_sys(shift_coefs(sys_coefs, zeta_gl)) 
-            )
-            xs_init_sys = prepare_init(np.zeros(Nx))
-            oo = RK45(f_to_RK, t_global, xs_init_sys, t[-1], max_step=dt)
-            while mix.compare_two_strings(oo.status, "running"):
-                oo.step()
-                x_loc = np.array(oo.y[:N_terms[0]])
-                rr    = get_radius(x_loc)
-                if rr >= zeta_th:
-                    counter_beyond += 1
-                    if counter_beyond > 4:
-                        print("Error: linearization radius is too small")
-                        return None, None, None
+    t_global = 0.
+    Nt_act   = 0
+    t_res[Nt_act]          = t_global
+    sol_carleman[Nt_act,:] = np.array(X_init_cond) 
+    while t_global < t[-1]:
+        A_chart, B_chart = prepare_matrices_AB(
+            return_sys(shift_coefs(sys_coefs, Zeta_gl)) 
+        )
+        xs_init_sys = prepare_init(x_loc)
+        oo = RK45(f_to_RK, t_global, xs_init_sys, t[-1], max_step=dt)
+        while mix.compare_two_strings(oo.status, "running"):
+            oo.step()
+            x_loc = np.array(oo.y[:N_terms[0]])
 
-                    zeta_gl += x_prev # set the current location as a near-center of a new chart
-                    break
-                else:
-                    counter_beyond = 0
-                    Nt_act += 1
-                    t_global = oo.t
-                    if Nt_act >= len(t_res):
-                        print("\nWARNING: increase arrays: t, counter_t: {:0.3e}, {:d}".format(t_global, Nt_act))
-                        t_res        = np.pad(t_res, (0, Nt), 'constant')
-                        sol_carleman = np.pad(sol_carleman, ((0, Nt), (0, 0)), mode='constant')
-                    t_res[Nt_act]          = t_global
-                    sol_carleman[Nt_act,:] = shift_x(x_loc, zeta_gl)
-                    x_prev = x_loc
-    else:
-        # Save the first state after the horizon: a faster version, but with lower precision
-        zeta_gl  = np.array(x_init_cond) 
-        t_global = 0.
-        Nt_act   = 0
-        t_res[Nt_act]          = t_global
-        sol_carleman[Nt_act,:] = np.array(x_init_cond) 
-        while t_global < t[-1]:
-            A_chart, B_chart = prepare_matrices_AB(
-                return_sys(shift_coefs(sys_coefs, zeta_gl)) 
-            )
-            xs_init_sys = prepare_init(np.zeros(Nx))
-            oo = RK45(f_to_RK, t_global, xs_init_sys, t[-1], max_step=dt)
-            while mix.compare_two_strings(oo.status, "running"):
-                oo.step()
-                t_global = oo.t
-                x_loc = np.array(oo.y[:N_terms[0]])
+            # --- Save ---
+            Nt_act   += 1
+            t_global = oo.t
+            if Nt_act >= len(t_res):
+                print("\nWARNING: increase arrays: t, counter_t: {:0.3e}, {:d}".format(t_global, Nt_act))
+                t_res        = np.pad(t_res, (0, Nt), 'constant')
+                sol_carleman = np.pad(sol_carleman, ((0, Nt), (0, 0)), mode='constant')
+            t_res[Nt_act]          = t_global
+            sol_carleman[Nt_act,:] = shift_x(x_loc, Zeta_gl)
 
-                Nt_act += 1
-                if Nt_act >= len(t_res):
-                    print("\nWARNING: increase arrays: t, counter_t: {:0.3e}, {:d}".format(t_global, Nt_act))
-                    t_res        = np.pad(t_res, (0, Nt), 'constant')
-                    sol_carleman = np.pad(sol_carleman, ((0, Nt), (0, 0)), mode='constant')
-                t_res[Nt_act]          = t_global
-                sol_carleman[Nt_act,:] = shift_x(x_loc, zeta_gl)
-                
-                rr    = get_radius(x_loc)
-                if rr >= zeta_th:
-                    zeta_gl += x_loc # set the current location as a near-center of a new chart
-                    break
+            # --- Find dimensions where the trajectory escaped the tile ---
+            k_array = np.zeros(Nx, dtype=np.integer)
+            Nk = 0
+            for ii in range(Nx):
+                if np.abs(x_loc[ii]) > Zeta_grid[ii]:
+                    Nk += 1
+                    k_array[Nk-1] = ii
+            k_array = k_array[:Nk]
+            del ii
+
+            if Nk > 0:
+                # --- Next tile ---     
+                for kk in range(Nk):
+                    ii = k_array[kk] # the dimension where
+                    # shift_i = int(x_loc[ii] / np.abs(x_loc[ii]))
+                    shift_i = int(np.sign(x_loc[ii]))
+                    L_grid[ii] += shift_i  # the index location of the next tile;
+
+                    d_zeta = 2.*Zeta_grid[ii] 
+                    zeta_gl_prev = Zeta_gl[ii]
+
+                    Zeta_gl[ii]  = X_GC[ii] + L_grid[ii] * d_zeta             # the center of the next tile;
+                    x_loc[ii]    = zeta_gl_prev + x_loc[ii] - Zeta_gl[ii] # the local coord. in the next tile;
+                del kk, ii
+                break
                 
     # --- remove empty cells from the resulting lists ---    
-    t_res = t_res[:(Nt_act+1)]
+    t_res        = t_res[:(Nt_act+1)]
     sol_carleman = sol_carleman[:(Nt_act+1),:]
     print("Done")
-    return sol_carleman, t_res, "GL"
+    return sol_carleman, t_res, "GCE"
 
 
 # -----------------------------------------------------------------------------------------------
@@ -1356,6 +1339,48 @@ def compare_trajectory_cl_and_carleman(
                 path_save + "/EMB_{:s}_{:s}_radius.dat".format(case_title, case_emb), 
                 t_emb[::step_t], radii_emb[::step_t]
             )
-
-
     return
+
+
+
+# -----------------------------------------------------------------------------------------------
+# --- Printing GCE grid  ---
+# -----------------------------------------------------------------------------------------------
+def print_GCE_grid(X_GC, Zeta, max_v):
+    grid_desc = None
+    if X_GC is not None:
+        print("\n\n ----------------------------------------------")
+        print("--- GCE grid ---")
+        print("----------------------------------------------")
+        print("center: ")
+        mix.print_array(X_GC, ff = [14, 3, "e"])
+
+        print("sizes: ")
+        mix.print_array(Zeta, ff = [14, 3, "e"])
+
+        print()
+
+        Nx = len(X_GC)
+        str_dims = ["x", "y", "z", "w"]
+        grid_desc = []
+        for ii in range(Nx):
+            xc = X_GC[ii]
+            xi = Zeta[ii]
+            d_xi = 2. * xi
+            l_max = int(np.ceil( (max_v - xc)/d_xi ))
+            if l_max < 0:
+                print("\n>>> Error: the grid center is beyond max_v")
+                return None
+
+            grid_desc_x = np.zeros(2 * l_max + 1 + 1)
+            counter_el = -1
+            for jj in range(-l_max, l_max + 1):
+                counter_el += 1
+                grid_desc_x[counter_el] = xc + jj * d_xi - xi # left boundaries of grid tiles
+            grid_desc_x[-1] = xc + l_max * d_xi + d_xi # the right boundary of the rightmost tile
+
+            grid_desc.append(np.array(grid_desc_x))
+
+            print("--- {:s} ---".format(str_dims[ii]))
+            mix.print_array(grid_desc_x, ff = [14, 3, "e"], n_in_row=len(grid_desc_x))
+    return grid_desc
