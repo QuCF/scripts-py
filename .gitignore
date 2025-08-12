@@ -4,7 +4,7 @@ __pycache__
 
 env
 KIN1D2D
-archive
+archive*
 wiki/*
 
 jupyter-notebooks/burgers

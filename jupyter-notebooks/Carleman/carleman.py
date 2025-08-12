@@ -1169,16 +1169,16 @@ def compare_trajectory_cl_and_carleman(
             ax_loc.plot(s_ref[0], s_ref[1], color="b", linewidth = 2, linestyle='-', label = "CL")
             ax_loc.plot(s_emb[0], s_emb[1], color="r", linewidth = 2, linestyle="--", label = "CA")
 
-            # --- Save data ---
-            if flag_save:
-                mix.save_dat_plot_1d_file(
-                    path_save + "/REF_{:s}_xy.dat".format(case_title), 
-                    s_ref[0], s_ref[1]
-                )
-                mix.save_dat_plot_1d_file(
-                    path_save + "/EMB_{:s}_{:s}_xy.dat".format(case_title, case_emb), 
-                    s_emb[0], s_emb[1]
-                )
+            # # --- Save data ---
+            # if flag_save:
+            #     mix.save_dat_plot_1d_file(
+            #         path_save + "/REF_{:s}_xy.dat".format(case_title), 
+            #         s_ref[0], s_ref[1]
+            #     )
+            #     mix.save_dat_plot_1d_file(
+            #         path_save + "/EMB_{:s}_{:s}_xy.dat".format(case_title, case_emb), 
+            #         s_emb[0], s_emb[1]
+            #     )
         else:
             fig = plt.figure(figsize=fig_size)
             ax_loc = fig.add_subplot(111, projection='3d')
@@ -1192,16 +1192,16 @@ def compare_trajectory_cl_and_carleman(
             )
             ax_loc.set_zlabel("$z$", fontsize = fontsize) 
 
-            # --- Save data ---
-            if flag_save:
-                mix.save_dat_plot_3d_trajectory_file(
-                    path_save + "/REF_{:s}_xyz.dat".format(case_title), 
-                    s_ref[0], s_ref[1], s_ref[2]
-                )
-                mix.save_dat_plot_3d_trajectory_file(
-                    path_save + "/EMB_{:s}_{:s}_xyz.dat".format(case_title, case_emb), 
-                    s_emb[0][::step_t], s_emb[1][::step_t], s_emb[2][::step_t]
-                )
+            # # --- Save data ---
+            # if flag_save:
+            #     mix.save_dat_plot_3d_trajectory_file(
+            #         path_save + "/REF_{:s}_xyz.dat".format(case_title), 
+            #         s_ref[0], s_ref[1], s_ref[2]
+            #     )
+            #     mix.save_dat_plot_3d_trajectory_file(
+            #         path_save + "/EMB_{:s}_{:s}_xyz.dat".format(case_title, case_emb), 
+            #         s_emb[0][::step_t], s_emb[1][::step_t], s_emb[2][::step_t]
+            #     )
         ax_loc.set_xlabel("$x$", fontsize = fontsize)
         ax_loc.set_ylabel("$y$", fontsize = fontsize)       
         offset_text = ax_loc.yaxis.get_offset_text()
@@ -1218,14 +1218,17 @@ def compare_trajectory_cl_and_carleman(
     if Nvar == 1:
         fig, axs = plt.subplots(2, 1, figsize=fig_size)
         ax_loc = axs[0]
-        ax_loc.set_ylabel("$|x|$", fontsize = fontsize)
+        str_x = "$|x|$" if(flag_var_semilogy)  else "$x$"
+        ax_loc.set_ylabel(str_x, fontsize = fontsize)
     if Nvar == 2:
         ax_loc = axs[1]
-        ax_loc.set_ylabel("$|x|,|y|$", fontsize = fontsize)
+        str_x = "$|x|,|y|$" if(flag_var_semilogy)  else "$x,y$"
+        ax_loc.set_ylabel(str_x, fontsize = fontsize)
     if Nvar == 3:
         fig, axs = plt.subplots(2, 1, figsize=fig_size)
         ax_loc = axs[0]
-        ax_loc.set_ylabel("$|x|,|y|,|z|$", fontsize = fontsize)
+        str_x = "$|x|,|y|,|z|$" if(flag_var_semilogy)  else "$x,y,z$"
+        ax_loc.set_ylabel(str_x, fontsize = fontsize)
     
 
     for ivar in range(Nvar):
@@ -1247,21 +1250,17 @@ def compare_trajectory_cl_and_carleman(
                 t_emb[::step_t], s_emb[ivar][::step_t], 
                 color=colors_loc[ivar], linewidth = 2, linestyle='--', label = "CA: {:s}".format(label_lines[ivar])
             )
-            # ax_loc.fill_between(
-            #     t_emb[::step_t], s_emb[ivar][::step_t] - radii_emb[::step_t], s_emb[ivar][::step_t] + radii_emb[::step_t], 
-            #     color=colors_loc[ivar], alpha=0.3
-            # )
             
-        # --- Save data ---
-        if flag_save:
-            mix.save_dat_plot_1d_file(
-                path_save + "/REF_{:s}_{:s}.dat".format(case_title, label_lines[ivar]), 
-                t_ref, s_ref[ivar], 
-            )
-            mix.save_dat_plot_1d_file(
-                path_save + "/EMB_{:s}_{:s}_{:s}.dat".format(case_title, case_emb, label_lines[ivar]), 
-                t_emb[::step_t], s_emb[ivar][::step_t], 
-            )
+        # # --- Save data ---
+        # if flag_save:
+        #     mix.save_dat_plot_1d_file(
+        #         path_save + "/REF_{:s}_{:s}.dat".format(case_title, label_lines[ivar]), 
+        #         t_ref, s_ref[ivar], 
+        #     )
+        #     mix.save_dat_plot_1d_file(
+        #         path_save + "/EMB_{:s}_{:s}_{:s}.dat".format(case_title, case_emb, label_lines[ivar]), 
+        #         t_emb[::step_t], s_emb[ivar][::step_t], 
+        #     )
 
     offset_text = ax_loc.yaxis.get_offset_text()
     offset_text.set_fontsize(fontsize) 
@@ -1269,19 +1268,23 @@ def compare_trajectory_cl_and_carleman(
     ax_loc.legend(fontsize = fontsize_leg)
     ax_loc.grid(True)
     ax_loc.tick_params(axis='both', which='major', labelsize=fontsize)
-    # ax.set_xticklabels([])
 
     # --------------------------------------------------------------
     # --- Difference between signals ---
     # --------------------------------------------------------------
     ax_loc = axs[1] if Nvar == 1 or Nvar == 3 else axs[2]
+    abs_val = 0.
+    for ivar in range(Nvar):
+        abs_val += abs(s_ref[ivar])**2
+    abs_val = np.sqrt(abs_val)
 
     if not flag_max_error:
         for ivar in range(Nvar):
             s_emb_int[ivar] = np.interp(t_ref, t_emb, s_emb[ivar])
 
             # err = abs(s_ref[ivar] - s_emb_int[ivar]) 
-            err = abs(s_ref[ivar] - s_emb_int[ivar]) / abs(s_ref[ivar])
+            # err = abs(s_ref[ivar] - s_emb_int[ivar]) / abs(s_ref[ivar])
+            err = abs(s_ref[ivar] - s_emb_int[ivar]) / abs_val
 
             ax_loc.semilogy(
                 t_ref, err, 
@@ -1299,7 +1302,8 @@ def compare_trajectory_cl_and_carleman(
         errs = np.zeros((Nvar, len(t_ref)))
         for ivar in range(Nvar):
             s_emb_int[ivar] = np.interp(t_ref, t_emb, s_emb[ivar])
-            errs[ivar] = abs(s_ref[ivar] - s_emb_int[ivar]) / abs(s_ref[ivar])
+            # errs[ivar] = abs(s_ref[ivar] - s_emb_int[ivar]) / abs(s_ref[ivar])
+            errs[ivar] = abs(s_ref[ivar] - s_emb_int[ivar]) / abs_val
 
         max_err = np.max(errs, axis=0)
         ax_loc.semilogy(
@@ -1326,7 +1330,7 @@ def compare_trajectory_cl_and_carleman(
 
     # --- Plot the linearization radius separately ---
     if radii_emb is not None:
-        plt.figure(figsize=(8, 3))
+        plt.figure(figsize=(10, 3))
         plt.plot(t_emb[::step_t], radii_emb[::step_t], color='blue')
         plt.xlabel('t')
         plt.ylabel('lin. radius')
